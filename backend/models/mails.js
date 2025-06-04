@@ -30,11 +30,7 @@ const  mailSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true },
   sentAt: {
     type: Date
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
-});
+}, {timestamps : true});
 
 export default mongoose.model('mail', mailSchema);
