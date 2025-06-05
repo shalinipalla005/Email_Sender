@@ -7,7 +7,7 @@ const templateSchema = new Schema({
     ref : "User",
     requires : true
   },
-
+  
   templateName : {
     type : String,
     required: true,
@@ -29,6 +29,7 @@ const templateSchema = new Schema({
     type : String,
     required : true
   }
+
 }, {timestamps : true})
 
 

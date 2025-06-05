@@ -7,8 +7,7 @@ const cors = require('cors');
 
 dotenv.config();
 
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
+
 
 const app = express();
 
@@ -19,16 +18,9 @@ app.use(cors({
   credentials: true
 }));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
 
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
-    success: false,
-    error: err.message || 'Server Error'
-  });
-});
+app.use("/api/emails", emailRoutes);
+
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

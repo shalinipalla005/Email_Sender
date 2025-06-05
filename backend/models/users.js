@@ -22,12 +22,6 @@ const userSchema = new Schema({
     required : true
   },
 
-  templates : [{
-    type : Schema.Types.ObjectId,
-    ref : "Template",
-  }],
-
-  mails : [{type : Schema.Types.ObjectId, ref : "Mails"}]
 }, {})
 
 

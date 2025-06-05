@@ -4,9 +4,11 @@ export const saveTemplate = async (request, response) =>{
     try{
         const {templateName, category, description, content } = request.body;
         const userId = request.user._id; // Assuming user ID is stored in request.user
+
         if (!templateName || !category || !description || !content) {
             return response.status(400).json({ message: "All fields are required" });
         }
+
         const newTemplate = new templates({
             templateName,
             category,
@@ -14,15 +16,19 @@ export const saveTemplate = async (request, response) =>{
             content,
             createdBy: userId
         });
+
         const savedTemplate = await newTemplate.save();
     }
+
     catch (error) {
         console.error("Error saving template:", error);
         return response.status(500).json({ message: "Internal server error" });
     }
+
 }
 
 export const getTemplates = async (request, response) => {
+    
     try {
         const userId = request.user._id; // Assuming user ID is stored in request.user
         const templates = await templates.find({ createdBy: userId }).populate("createdBy", "name email");
