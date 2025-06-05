@@ -1,4 +1,4 @@
-import templates from "../models/templates";
+import Templates from "../models/templates";
 
 export const saveTemplate = async (request, response) =>{
     try{
@@ -7,7 +7,7 @@ export const saveTemplate = async (request, response) =>{
         if (!templateName || !category || !description || !content) {
             return response.status(400).json({ message: "All fields are required" });
         }
-        const newTemplate = new templates({
+        const newTemplate = new Templates({
             templateName,
             category,
             description,
@@ -15,6 +15,7 @@ export const saveTemplate = async (request, response) =>{
             createdBy: userId
         });
         const savedTemplate = await newTemplate.save();
+        return response.status(201).json(savedTemplate);
     }
     catch (error) {
         console.error("Error saving template:", error);
@@ -25,7 +26,7 @@ export const saveTemplate = async (request, response) =>{
 export const getTemplates = async (request, response) => {
     try {
         const userId = request.user._id; // Assuming user ID is stored in request.user
-        const templates = await templates.find({ createdBy: userId }).populate("createdBy", "name email");
+        const templates = await Templates.find({ createdBy: userId }).populate("createdBy", "name email");
         return response.status(200).json(templates);
     } catch (error) {
         console.error("Error fetching templates:", error);
@@ -37,7 +38,7 @@ export const templateById = async (request, response) => {
     try {
         const { templateId } = request.params;
         const userId = request.user._id; // Assuming user ID is stored in request.user
-        const template = await templates.findOne({ _id: templateId, createdBy: userId }).populate("createdBy", "name email");
+        const template = await Templates.findOne({ _id: templateId, createdBy: userId }).populate("createdBy", "name email");
         if (!template) {
             return response.status(404).json({ message: "Template not found" });
         }
@@ -52,7 +53,7 @@ export const templatesByCategory = async (request, response) => {
     try {
         const { category } = request.params;
         const userId = request.user._id; // Assuming user ID is stored in request.user
-        const templatesByCategory = await templates.find({ category, createdBy: userId }).populate("createdBy", "name email");
+        const templatesByCategory = await Templates.find({ category, createdBy: userId }).populate("createdBy", "name email");
         if (templatesByCategory.length === 0) {
             return response.status(404).json({ message: "No templates found for this category" });
         }
@@ -67,7 +68,7 @@ export const deleteTemplate = async (request, response) => {
     try {
         const { templateId } = request.params;
         const userId = request.user._id; // Assuming user ID is stored in request.user
-        const deletedTemplate = await templates.findOneAndDelete({ _id: templateId, createdBy: userId });
+        const deletedTemplate = await Templates.findOneAndDelete({ _id: templateId, createdBy: userId });
         if (!deletedTemplate) {
             return response.status(404).json({ message: "Template not found" });
         }
@@ -88,7 +89,7 @@ export const updateTemplate = async (request, response) => {
             return response.status(400).json({ message: "All fields are required" });
         }
 
-        const updatedTemplate = await templates.findOneAndUpdate(
+        const updatedTemplate = await Templates.findOneAndUpdate(
             { _id: templateId, createdBy: userId },
             { templateName, category, description, content, updatedAt: Date.now() },
             { new: true }
