@@ -1,36 +1,44 @@
 import mongoose from 'mongoose';
 
-const  mailSchema = new mongoose.Schema({
+const mailSchema = new mongoose.Schema({
   subject: {
     type: String,
     required: true,
     trim: true
   },
+
   body: {
     type: String,
-    required: true
+    required: true // This is from template's HTML content
   },
-  recipientEmail: [{
-    type: String,
-    required: true,
-    trim: true,
-    lowercase: true
-  }],
+
   senderEmail: {
     type: String,
     required: true,
     trim: true,
     lowercase: true
   },
-  status: {
-    type: String,
-    enum: ['Pending', 'Sent', 'Failed'],
-    default: 'Pending'
-  },
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true },
-  sentAt: {
-    type: Date
-  }
-}, {timestamps : true});
 
-export default mongoose.model('mail', mailSchema);
+  recipientData: [{
+    recipientName: {
+      type: String,
+      required: true
+    },
+    recipientEmail: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true
+    }
+  }],
+
+  senderId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Users", 
+    required: true 
+  },
+
+}, { timestamps: true });
+
+const Mails = mongoose.model("Mails", mailSchema);
+module.export = Mails; 
