@@ -1,9 +1,12 @@
-// backend/index.js
+
 const express = require('express');
 const mongoose = require('mongoose');
+
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+
+const emailRoutes = require('./routes/emailRoutes')
 
 dotenv.config();
 
