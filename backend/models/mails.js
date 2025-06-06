@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const  mongoose  = require("mongoose");
 
 const mailSchema = new mongoose.Schema({
   subject: {
@@ -9,14 +9,14 @@ const mailSchema = new mongoose.Schema({
 
   body: {
     type: String,
-    required: true // This is from template's HTML content
+    required: true 
   },
 
   senderEmail: {
     type: String,
-    required: true,
-    trim: true,
-    lowercase: true
+    required : true,
+    trim : true,
+    lowercase : true
   },
 
   recipientData: [{
@@ -24,12 +24,14 @@ const mailSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+
     recipientEmail: {
       type: String,
       required: true,
       trim: true,
       lowercase: true
     }
+
   }],
 
   senderId: { 
@@ -41,4 +43,4 @@ const mailSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Mails = mongoose.model("Mails", mailSchema);
-module.export = Mails; 
+module.exports = Mails; 

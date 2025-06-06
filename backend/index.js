@@ -1,14 +1,18 @@
-// backend/index.js
+
 const express = require('express');
 const mongoose = require('mongoose');
+
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 
+const emailRoutes = require('./routes/emailRoutes');
+
+const templateRoutes = require('./routes/templateRoutes');
+
 dotenv.config();
 
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
+
 
 const app = express();
 
@@ -19,16 +23,9 @@ app.use(cors({
   credentials: true
 }));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
 
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
-    success: false,
-    error: err.message || 'Server Error'
-  });
-});
+app.use("/api/emails", emailRoutes);
+app.use("/api/templates", templateRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

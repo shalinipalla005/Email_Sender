@@ -1,31 +1,31 @@
-import express from "express";
-import {
+const express = require("express");
+const {
   saveTemplate,
   getTemplates,
   deleteTemplate,
   updateTemplate,
   templatesByCategory,
-  templateById
-} from "../controllers/templateController.js";
+  templateById,
+} = require("../controllers/templateController");
 
 const router = express.Router();
 
 // Save a new template
-router.post("/api/templates", saveTemplate);
+router.post("/", saveTemplate);
 
 // Get all templates for the user
-router.get("/api/templates", getTemplates);
+router.get("/", getTemplates);
 
 // Get a specific template by ID
-router.get("/api/templates/:templateId", templateById);
-
-// Delete a template by ID
-router.delete("/api/templates/:templateId", deleteTemplate);
+router.get("/:templateId", templateById);
 
 // Update a template by ID
-router.put("/api/templates/:templateId", updateTemplate);
+router.put("/:templateId", updateTemplate);
 
-//Get templates by category
-router.get("/api/templates/category:category", templatesByCategory);
+// Delete a template by ID
+router.delete("/:templateId", deleteTemplate);
 
-export default router;
+// Get templates by category (fixed route path)
+router.get("/category/:category", templatesByCategory);
+
+module.exports = router;
