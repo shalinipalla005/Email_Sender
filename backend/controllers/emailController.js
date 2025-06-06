@@ -1,16 +1,20 @@
 const nodemailer = require("nodemailer")
+
+const Users = require("../models/users")
 const Mails = require('../models/mails')
+
 const {convert} = require('html-to-text')
+const protection = require("../utils/encryptionUtils");
 
 
-const createTransporter = () => {
+const createTransporter = (email, password) => {
     const transporter = nodemailer.createTransport({
         host : 'smtp.gmail.com',
         port : 465,
         secure : true,
         auth : {
-            user : process.env.EMAIL_USER,
-            pass : process.env.EMAIL_PASS,
+            user : email,
+            pass : password,
         },
     })
 
@@ -71,8 +75,22 @@ const sendBulkEmails = async (req, res) => {
             })
         }
 
+        const {userId, senderEmailToUse} = req.body;
+        const user = await Users.findById(userId);
 
-        const transporter = createTransporter()
+        if(!user || !user.emailConfigs || user.emailConfigs.length == 0){
+            throw Error('No sender email configured for the user');
+        }
+
+        const selectedConfig = user.emailConfigs.find(config => config.senderEmail === senderEmailToUse);
+
+        if(!selectedConfig){
+            throw Error('Sender Email not found');
+        }
+
+        const decryptedAppPassword = protection.decrypt(selectedConfig.encryptedAppPassword);
+
+        const transporter = createTransporter(senderEmail, decryptedAppPassword)
 
         const {subject, body, senderEmail, recipientData  } = mailRecord
 
@@ -143,4 +161,48 @@ const sendBulkEmails = async (req, res) => {
     }
 }
 
-module.exports = {createEmail, sendBulkEmails}
+const addEmailConfig = async (req, res) => {
+    try{
+        
+        const {userId, senderEmail, appPassword} = req.body;
+
+        if(!senderEmail || !appPassword){
+            return res.status(400).json({
+                success : false,
+                message  : " Email and App password are required"
+            })
+        }
+
+        const user = await Users.findById(userId);
+
+        if(!user){
+            return res.status(404).json({
+                success : false,
+                message : "User not found"
+            })
+        }
+
+        const encrypted = protection.encrypt(appPassword);
+
+        user.emailConfigs.push({
+            senderEmail,
+            encryptedAppPassword : encrypted
+        });
+
+        await user.save();
+
+        res.status(200).json({
+            success : true,
+            message : "Email configuration added successfully",
+            emailConfigAdded : senderEmail
+        })
+    }catch(error){
+        console.log("Add email config error: ", error);
+        res.status(500).json({
+            success : false,
+            message : 'Failed to add email config',
+        })
+    }
+}
+
+module.exports = {createEmail, sendBulkEmails, addEmailConfig}

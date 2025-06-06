@@ -21,7 +21,30 @@ const userSchema = new Schema({
   password: {
     type: String,
     required: true
-  }
+  },
+  emailConfigs : [{
+    senderEmail : {
+      type : String,
+      required : true,
+      trim : true,
+      lowercase : true
+    },
+
+    encryptedAppPassword : {
+      encrypted : {
+        type : String,
+        required : true
+      },
+      iv : {
+        type : String,
+        required : true,
+      },
+      authTag : {
+        type : String,
+        required : true
+      }
+    }
+  }]
 });
 
 //signup function
