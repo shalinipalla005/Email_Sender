@@ -1,33 +1,39 @@
-import mongoose from 'mongoose';
+const { mongoose } = require("mongoose")
+const Schema = mongoose.Schema
 
-const templateSchema = new mongoose.Schema({
-  templateName: {
-    type: String,
+const templateSchema = new Schema({
+  userId : {
+    type : String,
+    ref : "User",
+    requires : true
+  },
+  
+  templateName : {
+    type : String,
     required: true,
-    trim: true
+    trim : true
   },
-  category: {
-    type: String,
-    required: true,
-    enum: ["General", "Personal", "Professional"]
+
+  description : {
+    type : String,
+    required : true
   },
-  description: {
-    type: String,
-    required: true
+
+  subject : {
+    type : String,
+    required : true,
+    trim : true,
   },
-  content: {
-    type: String,
-    required: true
-  },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true }, 
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+
+  content : {
+    type : String,
+    required : true
   }
-});
 
-export default mongoose.model('templates', templateSchema);
+}, {timestamps : true})
+
+
+const Templates = mongoose.model('Templates', templateSchema)
+
+
+module.exports = Templates

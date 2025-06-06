@@ -1,106 +1,198 @@
-import templates from "../models/templates";
+const Templates = require("../models/templates");
 
-export const saveTemplate = async (request, response) =>{
-    try{
-        const {templateName, category, description, content } = request.body;
-        const userId = request.user._id; // Assuming user ID is stored in request.user
-        if (!templateName || !category || !description || !content) {
-            return response.status(400).json({ message: "All fields are required" });
-        }
-        const newTemplate = new templates({
-            templateName,
-            category,
-            description,
-            content,
-            createdBy: userId
-        });
-        const savedTemplate = await newTemplate.save();
+// Save a new template
+const saveTemplate = async (req, res) => {
+  try {
+    const { templateName, category, description, content } = req.body;
+    //const userId = req.user._id; // Assuming auth middleware sets this
+
+    if (!templateName || !category || !description || !content) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
     }
-    catch (error) {
-        console.error("Error saving template:", error);
-        return response.status(500).json({ message: "Internal server error" });
+
+    const newTemplate = new Templates({
+      templateName,
+      category,
+      description,
+      content,
+      createdBy: userId,
+    });
+
+    const savedTemplate = await newTemplate.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Template saved successfully",
+      data: savedTemplate,
+    });
+  } catch (error) {
+    console.error("Error saving template:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save template",
+      error: error.message,
+    });
+  }
+};
+
+// Get all templates for the logged-in user
+const getTemplates = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const templates = await Templates.find({ createdBy: userId }).populate("createdBy", "name email");
+
+    return res.status(200).json({
+      success: true,
+      data: templates,
+    });
+  } catch (error) {
+    console.error("Error fetching templates:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch templates",
+      error: error.message,
+    });
+  }
+};
+
+// Get one template by ID
+const templateById = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const userId = req.user._id;
+
+    const template = await Templates.findOne({ _id: templateId, createdBy: userId }).populate("createdBy", "name email");
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
     }
-}
 
-export const getTemplates = async (request, response) => {
-    try {
-        const userId = request.user._id; // Assuming user ID is stored in request.user
-        const templates = await templates.find({ createdBy: userId }).populate("createdBy", "name email");
-        return response.status(200).json(templates);
-    } catch (error) {
-        console.error("Error fetching templates:", error);
-        return response.status(500).json({ message: "Internal server error" });
+    return res.status(200).json({
+      success: true,
+      data: template,
+    });
+  } catch (error) {
+    console.error("Error fetching template by ID:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch template",
+      error: error.message,
+    });
+  }
+};
+
+// Get all templates by category
+const templatesByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    const userId = req.user._id;
+
+    const templates = await Templates.find({ category, createdBy: userId }).populate("createdBy", "name email");
+
+    if (templates.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No templates found in this category",
+      });
     }
-}
 
-export const templateById = async (request, response) => {
-    try {
-        const { templateId } = request.params;
-        const userId = request.user._id; // Assuming user ID is stored in request.user
-        const template = await templates.findOne({ _id: templateId, createdBy: userId }).populate("createdBy", "name email");
-        if (!template) {
-            return response.status(404).json({ message: "Template not found" });
-        }
-        return response.status(200).json(template);
-    } catch (error) {
-        console.error("Error fetching template by ID:", error);
-        return response.status(500).json({ message: "Internal server error" });
+    return res.status(200).json({
+      success: true,
+      data: templates,
+    });
+  } catch (error) {
+    console.error("Error fetching templates by category:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch templates by category",
+      error: error.message,
+    });
+  }
+};
+
+// Delete template by ID
+const deleteTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const userId = req.user._id;
+
+    const deleted = await Templates.findOneAndDelete({ _id: templateId, createdBy: userId });
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
     }
-}
 
-export const templatesByCategory = async (request, response) => {
-    try {
-        const { category } = request.params;
-        const userId = request.user._id; // Assuming user ID is stored in request.user
-        const templatesByCategory = await templates.find({ category, createdBy: userId }).populate("createdBy", "name email");
-        if (templatesByCategory.length === 0) {
-            return response.status(404).json({ message: "No templates found for this category" });
-        }
-        return response.status(200).json(templatesByCategory);
-    } catch (error) {
-        console.error("Error fetching templates by category:", error);
-        return response.status(500).json({ message: "Internal server error" });
+    return res.status(200).json({
+      success: true,
+      message: "Template deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting template:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete template",
+      error: error.message,
+    });
+  }
+};
+
+// Update existing template
+const updateTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const { templateName, category, description, content } = req.body;
+    const userId = req.user._id;
+
+    if (!templateName || !category || !description || !content) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
     }
-}
 
-export const deleteTemplate = async (request, response) => {
-    try {
-        const { templateId } = request.params;
-        const userId = request.user._id; // Assuming user ID is stored in request.user
-        const deletedTemplate = await templates.findOneAndDelete({ _id: templateId, createdBy: userId });
-        if (!deletedTemplate) {
-            return response.status(404).json({ message: "Template not found" });
-        }
-        return response.status(200).json({ message: "Template deleted successfully" });
-    } catch (error) {
-        console.error("Error deleting template:", error);
-        return response.status(500).json({ message: "Internal server error" });
+    const updated = await Templates.findOneAndUpdate(
+      { _id: templateId, createdBy: userId },
+      { templateName, category, description, content, updatedAt: Date.now() },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
     }
-}
 
-export const updateTemplate = async (request, response) => {
-    try {
-        const { templateId } = request.params;
-        const { templateName, category, description, content } = request.body;
-        const userId = request.user._id; // Assuming user ID is stored in request.user
+    return res.status(200).json({
+      success: true,
+      message: "Template updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    console.error("Error updating template:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update template",
+      error: error.message,
+    });
+  }
+};
 
-        if (!templateName || !category || !description || !content) {
-            return response.status(400).json({ message: "All fields are required" });
-        }
-
-        const updatedTemplate = await templates.findOneAndUpdate(
-            { _id: templateId, createdBy: userId },
-            { templateName, category, description, content, updatedAt: Date.now() },
-            { new: true }
-        );
-
-        if (!updatedTemplate) {
-            return response.status(404).json({ message: "Template not found" });
-        }
-
-        return response.status(200).json(updatedTemplate);
-    } catch (error) {
-        console.error("Error updating template:", error);
-        return response.status(500).json({ message: "Internal server error" });
-    }
-}
+module.exports = {
+  saveTemplate,
+  getTemplates,
+  templateById,
+  templatesByCategory,
+  deleteTemplate,
+  updateTemplate,
+};
