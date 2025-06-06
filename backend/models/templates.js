@@ -1,4 +1,5 @@
-const { mongoose } = require("mongoose")
+const { mongoose } = require("mongoose");
+const Users = require("./users"); 
 const Schema = mongoose.Schema
 
 const templateSchema = new Schema({
@@ -28,7 +29,13 @@ const templateSchema = new Schema({
   content : {
     type : String,
     required : true
-  }
+  },
+
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Users',
+    required: true
+  },
 
 }, {timestamps : true})
 

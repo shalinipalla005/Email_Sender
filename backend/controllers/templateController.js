@@ -3,8 +3,8 @@ const Templates = require("../models/templates");
 // Save a new template
 const saveTemplate = async (req, res) => {
   try {
-    const { templateName, category, description, content } = req.body;
-    //const userId = req.user._id; // Assuming auth middleware sets this
+    const { templateName, subject, category, description, content } = req.body;
+    const userId =  req.user._id; // Assuming auth middleware sets this
 
     if (!templateName || !category || !description || !content) {
       return res.status(400).json({
@@ -15,6 +15,7 @@ const saveTemplate = async (req, res) => {
 
     const newTemplate = new Templates({
       templateName,
+      subject,
       category,
       description,
       content,
