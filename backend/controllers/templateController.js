@@ -4,7 +4,7 @@ const Templates = require("../models/templates");
 const saveTemplate = async (req, res) => {
   try {
     const { templateName, category, description, content } = req.body;
-    //const userId = req.user._id; // Assuming auth middleware sets this
+    const userId = req.user._id; // Assuming auth middleware sets this
 
     if (!templateName || !category || !description || !content) {
       return res.status(400).json({
