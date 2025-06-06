@@ -2,7 +2,7 @@ const User = require('../models/users');
 const jwt = require('jsonwebtoken');
 
 const createToken = (_id) => {
-    return jwt.sign({_id}, process.env.SECRTET_KEY, {expiresIn : '2d'});
+    return jwt.sign({_id}, process.env.SECRET_KEY, {expiresIn : '2d'});
 }
 
 //login 

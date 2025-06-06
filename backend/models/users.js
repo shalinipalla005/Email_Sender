@@ -38,16 +38,13 @@ userSchema.statics.signup = async function(userName, email, password){
   if(!validator.isStrongPassword(password)){
     throw Error("Password not strong enough")
   }
-  const userExists = await this.findOne({userName})
-
-  if(userExists){
-    throw Error("User already exists")
+  const userNameExists = await this.findOne({ userName });
+  if (userNameExists) {
+    throw Error("Username already taken");
   }
-
-  const exists = await this.findOne({email})
-
-  if(exists){
-    throw Error("Email already in use")
+  const emailExists = await this.findOne({ email });
+  if (emailExists) {
+    throw Error("Email already in use");
   }
 
   const salt = await bcrypt.genSalt(10)
@@ -80,7 +77,7 @@ userSchema.statics.login = async function(email, password){
   }
 
   return user
-  
+
 }
 
 const Users = mongoose.model("Users", userSchema);
