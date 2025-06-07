@@ -3,15 +3,14 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const dotenv = require('dotenv');
+dotenv.config();
+
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 
 const emailRoutes = require('./routes/emailRoutes');
-
 const templateRoutes = require('./routes/templateRoutes');
-
-dotenv.config();
-
+const authRoutes = require('./routes/authRoutes')
 
 
 const app = express();
@@ -23,7 +22,7 @@ app.use(cors({
   credentials: true
 }));
 
-
+app.use("/api/user", authRoutes);
 app.use("/api/emails", emailRoutes);
 app.use("/api/templates", templateRoutes);
 
