@@ -1,16 +1,20 @@
 const nodemailer = require("nodemailer")
+
+const Users = require("../models/users")
 const Mails = require('../models/mails')
+
 const {convert} = require('html-to-text')
+const protection = require("../utils/encryptionUtils");
 
 
-const createTransporter = () => {
+const createTransporter = (email, password) => {
     const transporter = nodemailer.createTransport({
         host : 'smtp.gmail.com',
         port : 465,
         secure : true,
         auth : {
-            user : process.env.EMAIL_USER,
-            pass : process.env.EMAIL_PASS,
+            user : email,
+            pass : password,
         },
     })
 
@@ -28,6 +32,17 @@ const createEmail = async (req, res) => {
     }
     
     try{
+
+        const processedRecipientData = recipientData.map(recipient => {
+            const {recipientName, recipientEmail, ...dynamicFields} = recipient;
+            
+            return {
+                recipientName,
+                recipientEmail,
+                dynamicFields: new Map(Object.entries(dynamicFields))
+            };
+        });
+
         const mailRecord = new Mails({
             senderId,
             senderEmail,
@@ -71,17 +86,50 @@ const sendBulkEmails = async (req, res) => {
             })
         }
 
+        // const {userId, senderEmailToUse} = req.body;
+        const userId = mailRecord.senderId;
+        const senderEmailToUse = mailRecord.senderEmail;
 
-        const transporter = createTransporter()
+        const user = await Users.findById(userId);
 
-        const {subject, body, senderEmail, recipientData  } = mailRecord
+        if(!user || !user.emailConfigs || user.emailConfigs.length == 0){
+            throw Error('No sender email configured for the user');
+        }
+
+        const selectedConfig = user.emailConfigs.find(config => config.senderEmail === senderEmailToUse);
+
+        if(!selectedConfig){
+            throw Error('Sender Email not found');
+        }
+
+        console.log(selectedConfig.encryptedAppPassword)
+
+        const decryptedAppPassword = protection.decrypt(selectedConfig.encryptedAppPassword);
+
+        
+        const { subject, body, recipientData, senderEmail } = mailRecord;
+        
+        const transporter = createTransporter(senderEmail, decryptedAppPassword)
 
         const emailPromises = recipientData.map(async (recipient) => {
-            const { recipientName , recipientEmail } = recipient
+            const { recipientName , recipientEmail, dynamicFields } = recipient
 
-            const populatedBody = body
+            let populatedBody = body
             .replace(/{{name}}/g, recipientName)
             .replace(/{{email}}/g, recipientEmail)
+
+            let populatedSubject = subject
+            .replace(/{{name}}/g, recipientName)
+            .replace(/{{email}}/g, recipientEmail)
+
+            if(dynamicFields && dynamicFields instanceof Map){
+                for(let [fieldName, fieldValue] of dynamicFields){
+                    const regex = new  RegExp(`{{${fieldName}}}`, 'g');
+                    populatedBody = populatedBody.replace(regex, fieldValue);
+                    populatedSubject = populatedSubject.replace(regex, fieldValue);
+                }
+            }
+            
 
             const mailOptions = {
                 from : `"No name" <${senderEmail}>`,
@@ -143,4 +191,91 @@ const sendBulkEmails = async (req, res) => {
     }
 }
 
-module.exports = {createEmail, sendBulkEmails}
+const validateCSVData = async (req, res) => {
+    try {
+        const { subject, body, csvData } = req.body;
+        
+        // Extract variables from template
+        const templateVariables = [
+            ...extractVariablesFromTemplate(subject),
+            ...extractVariablesFromTemplate(body)
+        ];
+        
+        // Check if CSV headers match template variables
+        const csvHeaders = csvData.length > 0 ? Object.keys(csvData[0]) : [];
+        
+        const missingVariables = templateVariables.filter(variable => 
+            !csvHeaders.includes(variable) && 
+            variable !== 'name' && 
+            variable !== 'email'
+        );
+        
+        const extraFields = csvHeaders.filter(header => 
+            !templateVariables.includes(header) && 
+            header !== 'recipientName' && 
+            header !== 'recipientEmail'
+        );
+        
+        res.status(200).json({
+            success: true,
+            templateVariables,
+            csvHeaders,
+            missingVariables,
+            extraFields,
+            isValid: missingVariables.length === 0
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate CSV data',
+            error: error.message
+        });
+    }
+}
+
+const addEmailConfig = async (req, res) => {
+    try{
+        
+        const {userId, senderEmail, appPassword} = req.body;
+
+        if(!senderEmail || !appPassword){
+            return res.status(400).json({
+                success : false,
+                message  : " Email and App password are required"
+            })
+        }
+
+        const user = await Users.findById(userId);
+
+        if(!user){
+            return res.status(404).json({
+                success : false,
+                message : "User not found"
+            })
+        }
+
+        const encrypted = protection.encrypt(appPassword);
+
+        user.emailConfigs.push({
+            senderEmail,
+            encryptedAppPassword : encrypted
+        });
+
+        await user.save();
+
+        res.status(200).json({
+            success : true,
+            message : "Email configuration added successfully",
+            emailConfigAdded : senderEmail
+        })
+    }catch(error){
+        console.log("Add email config error: ", error);
+        res.status(500).json({
+            success : false,
+            message : 'Failed to add email config',
+        })
+    }
+}
+
+module.exports = {createEmail, sendBulkEmails, addEmailConfig}

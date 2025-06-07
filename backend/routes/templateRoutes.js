@@ -7,8 +7,11 @@ const {
   templatesByCategory,
   templateById,
 } = require("../controllers/templateController");
+const requireAuth = require("../middlewares/requireAuth");
 
 const router = express.Router();
+
+router.use(requireAuth)
 
 // Save a new template
 router.post("/", saveTemplate);
