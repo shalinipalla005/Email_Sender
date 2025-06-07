@@ -5,6 +5,7 @@ const Mails = require('../models/mails')
 
 const {convert} = require('html-to-text')
 const protection = require("../utils/encryptionUtils");
+const { extractVariablesFromTemplate, populateTemplate } = require("../utils/templateUtils");
 
 
 const createTransporter = (email, password) => {
@@ -134,7 +135,7 @@ const sendBulkEmails = async (req, res) => {
             const mailOptions = {
                 from : `"No name" <${senderEmail}>`,
                 to : recipientEmail,
-                subject : subject,
+                subject : populatedSubject,
                 html : populatedBody,
                 text : convert(populatedBody),
             }
@@ -278,4 +279,4 @@ const addEmailConfig = async (req, res) => {
     }
 }
 
-module.exports = {createEmail, sendBulkEmails, addEmailConfig}
+module.exports = {createEmail, sendBulkEmails, addEmailConfig, validateCSVData}
