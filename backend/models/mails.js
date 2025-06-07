@@ -30,8 +30,25 @@ const mailSchema = new mongoose.Schema({
       required: true,
       trim: true,
       lowercase: true
+    },
+    dynamicFields:{
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: new Map()
     }
 
+  }],
+
+  availableVariables: [{
+    fieldName: {
+      type: String,
+      required: true
+    },
+    fieldType: {
+      type: String,
+      enum: ['text', 'number', 'date', 'boolean'],
+      default: 'string'
+    }
   }],
 
   senderId: { 

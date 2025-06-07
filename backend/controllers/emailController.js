@@ -32,6 +32,17 @@ const createEmail = async (req, res) => {
     }
     
     try{
+
+        const processedRecipientData = recipientData.map(recipient => {
+            const {recipientName, recipientEmail, ...dynamicFields} = recipient;
+            
+            return {
+                recipientName,
+                recipientEmail,
+                dynamicFields: new Map(Object.entries(dynamicFields))
+            };
+        });
+
         const mailRecord = new Mails({
             senderId,
             senderEmail,
@@ -101,11 +112,24 @@ const sendBulkEmails = async (req, res) => {
         const transporter = createTransporter(senderEmail, decryptedAppPassword)
 
         const emailPromises = recipientData.map(async (recipient) => {
-            const { recipientName , recipientEmail } = recipient
+            const { recipientName , recipientEmail, dynamicFields } = recipient
 
-            const populatedBody = body
+            let populatedBody = body
             .replace(/{{name}}/g, recipientName)
             .replace(/{{email}}/g, recipientEmail)
+
+            let populatedSubject = subject
+            .replace(/{{name}}/g, recipientName)
+            .replace(/{{email}}/g, recipientEmail)
+
+            if(dynamicFields && dynamicFields instanceof Map){
+                for(let [fieldName, fieldValue] of dynamicFields){
+                    const regex = new  RegExp(`{{${fieldName}}}`, 'g');
+                    populatedBody = populatedBody.replace(regex, fieldValue);
+                    populatedSubject = populatedSubject.replace(regex, fieldValue);
+                }
+            }
+            
 
             const mailOptions = {
                 from : `"No name" <${senderEmail}>`,
@@ -164,6 +188,49 @@ const sendBulkEmails = async (req, res) => {
             success : false,
             message : 'failed to send bulk emails',
         })
+    }
+}
+
+const validateCSVData = async (req, res) => {
+    try {
+        const { subject, body, csvData } = req.body;
+        
+        // Extract variables from template
+        const templateVariables = [
+            ...extractVariablesFromTemplate(subject),
+            ...extractVariablesFromTemplate(body)
+        ];
+        
+        // Check if CSV headers match template variables
+        const csvHeaders = csvData.length > 0 ? Object.keys(csvData[0]) : [];
+        
+        const missingVariables = templateVariables.filter(variable => 
+            !csvHeaders.includes(variable) && 
+            variable !== 'name' && 
+            variable !== 'email'
+        );
+        
+        const extraFields = csvHeaders.filter(header => 
+            !templateVariables.includes(header) && 
+            header !== 'recipientName' && 
+            header !== 'recipientEmail'
+        );
+        
+        res.status(200).json({
+            success: true,
+            templateVariables,
+            csvHeaders,
+            missingVariables,
+            extraFields,
+            isValid: missingVariables.length === 0
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate CSV data',
+            error: error.message
+        });
     }
 }
 

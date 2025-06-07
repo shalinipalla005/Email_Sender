@@ -3,7 +3,7 @@ const Templates = require("../models/templates");
 // Save a new template
 const saveTemplate = async (req, res) => {
   try {
-    const { templateName, category, description, content } = req.body;
+    const { templateName, category, description, subject,  content } = req.body;
     const userId = req.user._id; // Assuming auth middleware sets this
 
     if (!templateName || !category || !description || !content) {
@@ -17,6 +17,7 @@ const saveTemplate = async (req, res) => {
       templateName,
       category,
       description,
+      subject,
       content,
       createdBy: userId,
     });
@@ -150,10 +151,10 @@ const deleteTemplate = async (req, res) => {
 const updateTemplate = async (req, res) => {
   try {
     const { templateId } = req.params;
-    const { templateName, category, description, content } = req.body;
+    const { templateName, category, description, subject, content } = req.body;
     const userId = req.user._id;
 
-    if (!templateName || !category || !description || !content) {
+    if (!templateName || !category || !description || !subject || !content) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
@@ -162,7 +163,7 @@ const updateTemplate = async (req, res) => {
 
     const updated = await Templates.findOneAndUpdate(
       { _id: templateId, createdBy: userId },
-      { templateName, category, description, content, updatedAt: Date.now() },
+      { templateName, category, description, subject, content, updatedAt: Date.now() },
       { new: true }
     );
 
