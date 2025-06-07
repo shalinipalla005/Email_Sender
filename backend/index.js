@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const dotenv = require('dotenv');
+dotenv.config();
+
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 
@@ -10,7 +12,6 @@ const emailRoutes = require('./routes/emailRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 const authRoutes = require('./routes/authRoutes')
 
-dotenv.config();
 
 const app = express();
 

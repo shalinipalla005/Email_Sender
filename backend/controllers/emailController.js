@@ -75,7 +75,10 @@ const sendBulkEmails = async (req, res) => {
             })
         }
 
-        const {userId, senderEmailToUse} = req.body;
+        // const {userId, senderEmailToUse} = req.body;
+        const userId = mailRecord.senderId;
+        const senderEmailToUse = mailRecord.senderEmail;
+
         const user = await Users.findById(userId);
 
         if(!user || !user.emailConfigs || user.emailConfigs.length == 0){
@@ -88,11 +91,14 @@ const sendBulkEmails = async (req, res) => {
             throw Error('Sender Email not found');
         }
 
+        console.log(selectedConfig.encryptedAppPassword)
+
         const decryptedAppPassword = protection.decrypt(selectedConfig.encryptedAppPassword);
 
+        
+        const { subject, body, recipientData, senderEmail } = mailRecord;
+        
         const transporter = createTransporter(senderEmail, decryptedAppPassword)
-
-        const {subject, body, senderEmail, recipientData  } = mailRecord
 
         const emailPromises = recipientData.map(async (recipient) => {
             const { recipientName , recipientEmail } = recipient

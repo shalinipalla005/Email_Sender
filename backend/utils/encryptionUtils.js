@@ -2,9 +2,13 @@ const crypto = require("crypto");
 
 class PasswordEncryption {
     constructor() {
-        this.encryptionKey = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
-        if (Buffer.from(this.encryptionKey, 'hex').length !== 32) {
-            throw new Error('Encryption key must be 32 bytes (64 hex characters)');
+        
+        this.encryptionKey = process.env.ENCRYPTION_KEY;
+
+      
+
+        if (!this.encryptionKey || Buffer.from(this.encryptionKey, 'hex').length !== 32) {
+            throw new Error('ENCRYPTION_KEY must be 32 bytes (64 hex characters)');
         }
         this.algorithm = 'aes-256-gcm';
     }
@@ -31,7 +35,6 @@ class PasswordEncryption {
         }
     }
 
- 
     decrypt(encryptedData, aad = 'email-config') {
         try {
             const decipher = crypto.createDecipheriv(
