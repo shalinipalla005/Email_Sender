@@ -14,6 +14,11 @@ const templateSchema = new Schema({
     required: true,
     trim : true
   },
+  category: {
+    type: String,
+    required: true,
+    enum: ['General', 'Business', 'Personal'], // Example categories
+    },
 
   description : {
     type : String,
