@@ -11,6 +11,7 @@ const CreateTemplatePage = ({ onPreview }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    subject: '',
     category: 'General',
     content: '',
     variables: [
@@ -40,6 +41,7 @@ const CreateTemplatePage = ({ onPreview }) => {
       setFormData({
         name: editingTemplate.name,
         description: editingTemplate.description,
+        subject: editingTemplate.subject,
         category: editingTemplate.category,
         content: editingTemplate.content,
         variables: editingTemplate.variables
@@ -150,11 +152,13 @@ const CreateTemplatePage = ({ onPreview }) => {
 
   const getPreviewContent = () => {
     let content = formData.content
+    let subject = formData.subject
     formData.variables.forEach(variable => {
       const regex = new RegExp(`{{${variable.name}}}`, 'g')
       content = content.replace(regex, sampleData[variable.name] || `[${variable.name}]`)
+      subject = subject.replace(regex, sampleData[variable.name] || `[${variable.name}]`)
     })
-    return content
+    return { content, subject }
   }
 
   const handlePreview = () => {
@@ -178,14 +182,24 @@ const CreateTemplatePage = ({ onPreview }) => {
       setLoading(true)
       setError(null)
 
+      const templateData = {
+        templateName: formData.name,
+        description: formData.description,
+        category: formData.category,
+        subject: formData.subject,
+        content: formData.content,
+        variables: formData.variables
+      }
+
       if (editingTemplate) {
-        await templateApi.update(editingTemplate._id, formData)
+        await templateApi.update(editingTemplate._id, templateData)
       } else {
-        await templateApi.create(formData)
+        await templateApi.create(templateData)
       }
 
       navigate('/templates')
     } catch (error) {
+      console.error('Error saving template:', error)
       setError(error.response?.data?.message || 'Error saving template')
     } finally {
       setLoading(false)
@@ -286,6 +300,23 @@ const CreateTemplatePage = ({ onPreview }) => {
                 />
               </div>
 
+              <div>
+                <label htmlFor="subject" className="block text-sm font-medium text-[#521C0D] mb-2">
+                  Email Subject
+                </label>
+                <input
+                  type="text"
+                  id="subject"
+                  name="subject"
+                  value={formData.subject}
+                  onChange={handleInputChange}
+                  placeholder="Enter email subject line"
+                  className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent transition-all duration-200"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
               {!previewMode ? (
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -378,10 +409,16 @@ const CreateTemplatePage = ({ onPreview }) => {
                       <HelpCircle size={20} />
                     </button>
                   </div>
-                  <div
-                    className="w-full min-h-[300px] px-4 py-3 bg-white rounded-xl text-[#521C0D] overflow-y-auto border border-[#521C0D]/10"
-                    dangerouslySetInnerHTML={{ __html: getPreviewContent() }}
-                  />
+                  <div className="space-y-4">
+                    <div className="w-full px-4 py-3 bg-white rounded-xl text-[#521C0D] border border-[#521C0D]/10">
+                      <h4 className="font-medium mb-1">Subject:</h4>
+                      <div dangerouslySetInnerHTML={{ __html: getPreviewContent().subject }} />
+                    </div>
+                    <div className="w-full min-h-[300px] px-4 py-3 bg-white rounded-xl text-[#521C0D] overflow-y-auto border border-[#521C0D]/10">
+                      <h4 className="font-medium mb-2">Content:</h4>
+                      <div dangerouslySetInnerHTML={{ __html: getPreviewContent().content }} />
+                    </div>
+                  </div>
                 </div>
               )}
 

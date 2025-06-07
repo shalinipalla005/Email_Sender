@@ -26,9 +26,13 @@ const TemplatesPage = () => {
       } else {
         response = await templateApi.getByCategory(selectedCategory)
       }
-      setTemplates(response.data)
+      // Ensure we have an array of templates, even if empty
+      const templatesData = response?.data?.data || []
+      setTemplates(templatesData)
     } catch (error) {
+      console.error('Error fetching templates:', error)
       setError(error.response?.data?.message || 'Error fetching templates')
+      setTemplates([]) // Reset to empty array on error
     } finally {
       setLoading(false)
     }
@@ -65,6 +69,7 @@ const TemplatesPage = () => {
         name: `${template.name} (Copy)`,
         description: template.description,
         content: template.content,
+        subject: template.subject,
         category: template.category
       }
       const response = await templateApi.create(newTemplate)
@@ -138,6 +143,7 @@ const TemplatesPage = () => {
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <h3 className="text-xl font-semibold text-[#521C0D] mb-2">{template.name}</h3>
+                <p className="text-[#521C0D]/70 text-sm mb-2">{template.subject}</p>
                 <p className="text-[#521C0D]/70 text-sm mb-3">{template.description}</p>
                 <div className={`inline-block px-3 py-1 rounded-full text-xs border ${getCategoryColor(template.category)}`}>
                   {template.category}

@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Upload, FileText, X, Eye, Send, Users, Mail, AlertCircle, CheckCircle, Download, Zap, Clock, Target } from 'lucide-react'
+import { Upload, FileText, X, Eye, Send, Users, Mail, AlertCircle, CheckCircle, Download, Zap, Clock, Target, Settings } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import Papa from 'papaparse'
+import { emailApi } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 
 const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
   if (!isOpen || !previewData) return null
@@ -145,6 +149,10 @@ const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
 }
 
 const DraftPage = () => {
+  const location = useLocation()
+  const { user } = useAuth()
+  const selectedTemplate = location.state?.template
+
   const [file, setFile] = useState(null)
   const [data, setData] = useState([])
   const [template, setTemplate] = useState('')
@@ -158,7 +166,64 @@ const DraftPage = () => {
   const [emailValidation, setEmailValidation] = useState({ valid: 0, invalid: 0 })
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
+  const [emailConfigs, setEmailConfigs] = useState([])
+  const [selectedEmailConfig, setSelectedEmailConfig] = useState('')
+  const [showEmailConfigModal, setShowEmailConfigModal] = useState(false)
+  const [newEmailConfig, setNewEmailConfig] = useState({ senderEmail: '', appPassword: '' })
   const fileInputRef = useRef(null)
+
+  // Fetch email configurations on mount
+  useEffect(() => {
+    fetchEmailConfigs()
+  }, [])
+
+  const fetchEmailConfigs = async () => {
+    try {
+      const response = await emailApi.getEmailConfigs()
+      setEmailConfigs(response.data)
+      if (response.data.length > 0) {
+        setSelectedEmailConfig(response.data[0].senderEmail)
+      }
+    } catch (error) {
+      console.error('Error fetching email configs:', error)
+    }
+  }
+
+  const handleAddEmailConfig = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (!newEmailConfig.senderEmail || !newEmailConfig.appPassword) {
+        setError('Please fill in all fields');
+        return;
+      }
+
+      const response = await emailApi.addEmailConfig(newEmailConfig);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to add email configuration');
+      }
+
+      await fetchEmailConfigs();
+      setShowEmailConfigModal(false);
+      setNewEmailConfig({ senderEmail: '', appPassword: '' });
+      setSuccess('Email configuration added successfully');
+    } catch (error) {
+      console.error('Add email config error:', error);
+      setError(error.response?.data?.message || error.message || 'Error adding email configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize template data when a template is selected
+  useEffect(() => {
+    if (selectedTemplate) {
+      setTemplate(selectedTemplate.content)
+      setSubject(selectedTemplate.subject)
+    }
+  }, [selectedTemplate])
 
   const validateEmails = (data) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -176,68 +241,37 @@ const DraftPage = () => {
     return { valid, invalid }
   }
 
-  const extractTemplateVariables = (template) => {
-    const matches = template.match(/\{\{([^}]+)\}\}/g)
-    return matches ? matches.map(match => match.replace(/[{}]/g, '')) : []
-  }
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
 
-  const validateTemplate = (template, fields) => {
-    const templateVars = extractTemplateVariables(template)
-    const missingFields = templateVars.filter(variable => !fields.includes(variable))
-    return missingFields
-  }
+    setFile(file)
+    setError(null)
+    setValidationErrors([])
 
-  const handleFileUpload = async (event) => {
-    try {
-      setLoading(true)
-      setError(null)
-      setSuccess(null)
-      setValidationErrors([])
-      
-      const uploadedFile = event.target.files[0]
-      if (!uploadedFile) return
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.data.length === 0) {
+          setError('The file appears to be empty')
+          return
+        }
 
-      // file processing 
-      const mockData = [
-        { name: 'John Doe', email: 'john@example.com', company: 'Tech Corp', position: 'Developer' },
-        { name: 'Jane Smith', email: 'jane@example.com', company: 'Design Co', position: 'Designer' },
-        { name: 'Bob Johnson', email: 'bob@invalid-email', company: 'Sales Inc', position: 'Manager' },
-        { name: 'Alice Brown', email: 'alice@example.com', company: 'Marketing Ltd', position: 'Specialist' },
-        { name: 'Charlie Wilson', email: 'charlie@example.com', company: 'Finance Co', position: 'Analyst' },
-      ]
+        const fields = Object.keys(results.data[0])
+        if (!fields.includes('email')) {
+          setError('The file must contain an "email" column')
+          return
+        }
 
-      setFile(uploadedFile)
-      setData(mockData)
-      setAvailableFields(Object.keys(mockData[0]))
-      
-      const emailStats = validateEmails(mockData)
-      setEmailValidation(emailStats)
-      
-      if (emailStats.invalid > 0) {
-        setValidationErrors([`${emailStats.invalid} invalid email address(es) found`])
+        setData(results.data)
+        setAvailableFields(fields)
+        setEmailValidation(validateEmails(results.data))
+      },
+      error: (error) => {
+        setError('Error parsing file: ' + error.message)
       }
-      
-      setSuccess(`Successfully loaded ${mockData.length} records`)
-    } catch (error) {
-      setError('Error uploading file')
-      setFile(null)
-      setData([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDragOver = (event) => {
-    event.preventDefault()
-  }
-
-  const handleDrop = async (event) => {
-    event.preventDefault()
-    const droppedFile = event.dataTransfer.files[0]
-    if (droppedFile && (droppedFile.type === 'text/csv' || droppedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
-      const fakeEvent = { target: { files: [droppedFile] } }
-      handleFileUpload(fakeEvent)
-    }
+    })
   }
 
   const handleRemoveFile = () => {
@@ -281,13 +315,6 @@ const DraftPage = () => {
         processedTemplate = 'No email content provided. Please add your email template.'
       }
 
-      console.log('Preview Data:', {
-        selectedRow,
-        processedTemplate,
-        processedSubject,
-        availableFields
-      })
-
       const previewContent = {
         subject: processedSubject,
         body: processedTemplate,
@@ -307,7 +334,10 @@ const DraftPage = () => {
   }
 
   const handleSendEmails = async () => {
-    if (!data.length || !template || !subject) return
+    if (!data.length || !template || !subject || !selectedEmailConfig) {
+      setError('Please fill in all required fields and select a sender email')
+      return
+    }
     
     const missingFields = validateTemplate(template, availableFields)
     if (missingFields.length > 0) {
@@ -324,8 +354,40 @@ const DraftPage = () => {
       setLoading(true)
       setError(null)
 
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Create email campaign
+      const campaignData = {
+        subject,
+        body: template,
+        senderEmail: selectedEmailConfig,
+        recipientData: data.map(row => ({
+          recipientName: row.name || row.email.split('@')[0],
+          recipientEmail: row.email,
+          customFields: Object.keys(row).reduce((acc, key) => {
+            if (key !== 'name' && key !== 'email') {
+              acc[key] = row[key]
+            }
+            return acc
+          }, {})
+        }))
+      }
 
+      // Create the campaign
+      const createResponse = await emailApi.createCampaign(campaignData)
+      
+      if (!createResponse.data.success) {
+        throw new Error(createResponse.data.message || 'Failed to create campaign')
+      }
+
+      const mailId = createResponse.data.mailId
+
+      // Send the campaign
+      const sendResponse = await emailApi.sendCampaign(mailId)
+      
+      if (!sendResponse.data.success) {
+        throw new Error(sendResponse.data.message || 'Failed to send campaign')
+      }
+
+      // Reset form
       setFile(null)
       setData([])
       setTemplate('')
@@ -337,9 +399,10 @@ const DraftPage = () => {
         fileInputRef.current.value = ''
       }
 
-      setSuccess(`Successfully sent emails to ${emailValidation.valid} recipients!`)
+      setSuccess(sendResponse.data.message)
     } catch (error) {
-      setError('Error sending emails')
+      console.error('Email sending error:', error)
+      setError(error.response?.data?.message || error.message || 'Error sending emails')
     } finally {
       setLoading(false)
     }
@@ -366,6 +429,59 @@ const DraftPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Email Config Modal */}
+      {showEmailConfigModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-[#521C0D] mb-4">Add Email Configuration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#521C0D] mb-2">
+                  Sender Email
+                </label>
+                <input
+                  type="email"
+                  value={newEmailConfig.senderEmail}
+                  onChange={(e) => setNewEmailConfig(prev => ({ ...prev, senderEmail: e.target.value }))}
+                  placeholder="Enter your email"
+                  className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#521C0D] mb-2">
+                  App Password
+                </label>
+                <input
+                  type="password"
+                  value={newEmailConfig.appPassword}
+                  onChange={(e) => setNewEmailConfig(prev => ({ ...prev, appPassword: e.target.value }))}
+                  placeholder="Enter app password"
+                  className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
+                />
+                <p className="text-xs text-[#521C0D]/60 mt-2">
+                  Use an app password from your email provider's security settings
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEmailConfigModal(false)}
+                className="flex-1 px-4 py-2 border border-[#521C0D]/20 text-[#521C0D] rounded-xl hover:bg-[#521C0D]/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddEmailConfig}
+                disabled={!newEmailConfig.senderEmail || !newEmailConfig.appPassword || loading}
+                className="flex-1 px-4 py-2 bg-[#D5451B] text-white rounded-xl hover:bg-[#521C0D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Adding...' : 'Add Configuration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <EmailPreviewModal
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
@@ -457,8 +573,6 @@ const DraftPage = () => {
                   ? 'border-[#FF9B45] bg-[#FF9B45]/5' 
                   : 'border-[#521C0D]/20 hover:border-[#FF9B45]/50 hover:bg-[#FF9B45]/5'
               } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
             >
               {!file ? (
                 <div className="space-y-4">
@@ -551,12 +665,46 @@ const DraftPage = () => {
 
         <div className="space-y-6">
           <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-            <h3 className="text-lg font-semibold text-[#521C0D] mb-4 flex items-center gap-2">
-              <Mail size={20} />
-              Email Content
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#521C0D] flex items-center gap-2">
+                <Mail size={20} />
+                Email Content
+              </h3>
+              <button
+                onClick={() => setShowEmailConfigModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-[#521C0D]/10 text-[#521C0D] rounded-lg hover:bg-[#521C0D]/20 transition-colors"
+              >
+                <Settings size={16} />
+                Configure Email
+              </button>
+            </div>
             
             <div className="space-y-4">
+              {emailConfigs.length > 0 ? (
+                <div>
+                  <label className="block text-sm font-medium text-[#521C0D] mb-2">
+                    Sender Email
+                  </label>
+                  <select
+                    value={selectedEmailConfig}
+                    onChange={(e) => setSelectedEmailConfig(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
+                  >
+                    {emailConfigs.map((config) => (
+                      <option key={config.senderEmail} value={config.senderEmail}>
+                        {config.senderEmail}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="bg-[#FF9B45]/20 text-[#D5451B] p-4 rounded-xl">
+                  <p className="text-sm">
+                    No email configurations found. Please add one to send emails.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-[#521C0D] mb-2">
                   Subject Line
@@ -649,9 +797,9 @@ Best regards"
             </button>
             <button
               onClick={handleSendEmails}
-              disabled={!data.length || !template || !subject || loading || emailValidation.valid === 0}
+              disabled={!data.length || !template || !subject || loading || emailValidation.valid === 0 || !selectedEmailConfig}
               className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${
-                !data.length || !template || !subject || loading || emailValidation.valid === 0
+                !data.length || !template || !subject || loading || emailValidation.valid === 0 || !selectedEmailConfig
                   ? 'bg-[#521C0D]/20 text-[#521C0D]/40 cursor-not-allowed'
                   : 'bg-[#D5451B] text-white hover:bg-[#521C0D]'
               }`}

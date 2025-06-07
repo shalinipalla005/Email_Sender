@@ -3,10 +3,10 @@ const Templates = require("../models/templates");
 // Save a new template
 const saveTemplate = async (req, res) => {
   try {
-    const { templateName, category, description, content } = req.body;
-    //const userId = req.user._id; // Assuming auth middleware sets this
+    const { templateName, category, description, content, subject } = req.body;
+    const userId = req.user._id; // Assuming auth middleware sets this
 
-    if (!templateName || !category || !description || !content) {
+    if (!templateName || !category || !description || !content || !subject) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
@@ -18,6 +18,7 @@ const saveTemplate = async (req, res) => {
       category,
       description,
       content,
+      subject,
       createdBy: userId,
     });
 
@@ -43,11 +44,26 @@ const getTemplates = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const templates = await Templates.find({ createdBy: userId }).populate("createdBy", "name email");
+    const templates = await Templates.find({ createdBy: userId })
+      .populate("createdBy", "name email")
+      .lean(); // Convert to plain JavaScript objects
+
+    // Transform the data to match frontend expectations
+    const transformedTemplates = templates.map(template => ({
+      _id: template._id,
+      name: template.templateName,
+      description: template.description,
+      content: template.content,
+      subject: template.subject,
+      category: template.category,
+      createdAt: template.createdAt,
+      lastUsed: template.lastUsed,
+      useCount: template.useCount || 0
+    }));
 
     return res.status(200).json({
       success: true,
-      data: templates,
+      data: transformedTemplates,
     });
   } catch (error) {
     console.error("Error fetching templates:", error);
@@ -150,10 +166,10 @@ const deleteTemplate = async (req, res) => {
 const updateTemplate = async (req, res) => {
   try {
     const { templateId } = req.params;
-    const { templateName, category, description, content } = req.body;
+    const { templateName, category, description, content, subject } = req.body;
     const userId = req.user._id;
 
-    if (!templateName || !category || !description || !content) {
+    if (!templateName || !category || !description || !content || !subject) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
@@ -162,7 +178,14 @@ const updateTemplate = async (req, res) => {
 
     const updated = await Templates.findOneAndUpdate(
       { _id: templateId, createdBy: userId },
-      { templateName, category, description, content, updatedAt: Date.now() },
+      { 
+        templateName, 
+        category, 
+        description, 
+        content, 
+        subject,
+        updatedAt: Date.now() 
+      },
       { new: true }
     );
 
