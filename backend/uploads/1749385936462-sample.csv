@@ -1,0 +1,11 @@
+name,email,company,position,location,phone
+John Doe,john.doe@techcorp.com,TechCorp Solutions,Senior Developer,New York,+1-555-0101
+Jane Smith,jane.smith@designhub.com,DesignHub Creative,UI/UX Designer,San Francisco,+1-555-0102
+Bob Johnson,bob.johnson@invalid-email,Sales Dynamics,Sales Manager,Chicago,+1-555-0103
+Alice Brown,alice.brown@marketpro.com,MarketPro Agency,Marketing Specialist,Boston,+1-555-0104
+Charlie Wilson,charlie.wilson@financeplus.com,FinancePlus Ltd,Financial Analyst,Miami,+1-555-0105
+Diana Garcia,diana.garcia@healthtech.com,HealthTech Innovations,Product Manager,Seattle,+1-555-0106
+Emily Davis,emily.davis@edulearn.org,EduLearn Institute,Training Coordinator,Austin,+1-555-0107
+Frank Miller,frank@consulting.biz,Miller Consulting,Business Consultant,Denver,+1-555-0108
+Grace Lee,grace.lee@startup.io,NextGen Startup,CTO,Portland,+1-555-0109
+Henry Taylor,henry.taylor@logistics.net,Swift Logistics,Operations Director,Atlanta,+1-555-0110

@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './Components/ProtectedRoute'
+import LoginPage from './Components/pages/LoginPage'
+import SignupPage from './Components/pages/SignupPage'
 import Header from './Components/Header'
 import Sidebar from './Components/Sidebar'
 import DraftPage from './Components/pages/DraftPage'
@@ -37,6 +41,17 @@ const AppContent = () => {
   const [previewModal, setPreviewModal] = useState({ open: false, content: null })
   const activePage = location.pathname.substring(1) || 'draft'
 
+  // Don't show header and sidebar on auth pages
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
+  if (isAuthPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+      </Routes>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F4E7E1] via-[#FF9B45]/30 to-[#D5451B]/20">
       <Header 
@@ -57,11 +72,46 @@ const AppContent = () => {
           <div className="animate-fade-in">
             <Routes>
               <Route path="/" element={<Navigate to="/draft" replace />} />
-              <Route path="/draft" element={<DraftPage onPreview={setPreviewModal} />} />
-              <Route path="/sent" element={<SentPage />} />
-              <Route path="/templates" element={<TemplatesPage />} />
-              <Route path="/templates/create" element={<CreateTemplatePage />} />
-              <Route path="/data" element={<DataPage />} />
+              <Route 
+                path="/draft" 
+                element={
+                  <ProtectedRoute>
+                    <DraftPage onPreview={setPreviewModal} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/sent" 
+                element={
+                  <ProtectedRoute>
+                    <SentPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/templates" 
+                element={
+                  <ProtectedRoute>
+                    <TemplatesPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/templates/create" 
+                element={
+                  <ProtectedRoute>
+                    <CreateTemplatePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/data" 
+                element={
+                  <ProtectedRoute>
+                    <DataPage />
+                  </ProtectedRoute>
+                } 
+              />
             </Routes>
           </div>
         </main>
@@ -79,7 +129,9 @@ const AppContent = () => {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   )
 }

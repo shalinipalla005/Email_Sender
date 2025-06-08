@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Mail, CheckCircle, XCircle, Clock, FileText } from 'lucide-react'
+import { Mail, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react'
 import { emailApi } from '../../services/api'
 
 const SentPage = () => {
   const [emails, setEmails] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [stats, setStats] = useState({
-    totalEmails: 0,
-    successCount: 0,
-    failureCount: 0,
-    pendingCount: 0
-  })
+  const [expandedEmail, setExpandedEmail] = useState(null)
 
   useEffect(() => {
     fetchEmails()
-    fetchStats()
   }, [])
 
   const fetchEmails = async () => {
@@ -28,15 +22,6 @@ const SentPage = () => {
       setError(error.response?.data?.message || 'Error fetching sent emails')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchStats = async () => {
-    try {
-      const response = await emailApi.getStats()
-      setStats(response.data.stats)
-    } catch (error) {
-      console.error('Error fetching email stats:', error)
     }
   }
 
@@ -66,124 +51,137 @@ const SentPage = () => {
     }
   }
 
+  const getRecipientStatusColor = (status) => {
+    switch (status) {
+      case 'sent':
+        return 'bg-green-100 text-green-700'
+      case 'failed':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-[#521C0D] drop-shadow-lg">Sent Emails</h2>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-[#521C0D]">Sent Emails</h1>
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[#521C0D]/60 text-sm">Total Emails</p>
-              <h3 className="text-2xl font-bold text-[#521C0D]">{stats.totalEmails}</h3>
-            </div>
-            <Mail className="text-[#521C0D]/40" size={32} />
-          </div>
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D5451B]"></div>
         </div>
-        <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[#521C0D]/60 text-sm">Delivered</p>
-              <h3 className="text-2xl font-bold text-green-500">{stats.successCount}</h3>
-            </div>
-            <CheckCircle className="text-green-500/40" size={32} />
-          </div>
-        </div>
-        <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[#521C0D]/60 text-sm">Failed</p>
-              <h3 className="text-2xl font-bold text-red-500">{stats.failureCount}</h3>
-            </div>
-            <XCircle className="text-red-500/40" size={32} />
-          </div>
-        </div>
-        <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[#521C0D]/60 text-sm">Pending</p>
-              <h3 className="text-2xl font-bold text-[#FF9B45]">{stats.pendingCount}</h3>
-            </div>
-            <Clock className="text-[#FF9B45]/40" size={32} />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#521C0D]/10">
-                <th className="pb-4 text-left text-[#521C0D]/80 font-medium">Subject</th>
-                <th className="pb-4 text-left text-[#521C0D]/80 font-medium">Template</th>
-                <th className="pb-4 text-left text-[#521C0D]/80 font-medium">Recipients</th>
-                <th className="pb-4 text-left text-[#521C0D]/80 font-medium">Status</th>
-                <th className="pb-4 text-left text-[#521C0D]/80 font-medium">Sent At</th>
-              </tr>
-            </thead>
-            <tbody>
-              {emails.map((email) => (
-                <tr key={email._id} className="border-b border-[#521C0D]/10 last:border-0">
-                  <td className="py-4 text-[#521C0D]">{email.subject}</td>
-                  <td className="py-4">
-                    {email.template ? (
-                      <div className="flex items-center gap-2 text-[#521C0D]">
-                        <FileText size={16} />
-                        <span>{email.template.name}</span>
+      ) : emails.length > 0 ? (
+        <div className="space-y-4">
+          {emails.map((email) => (
+            <div key={email._id} className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div 
+                className="p-4 cursor-pointer hover:bg-[#F4E7E1]/20 transition-colors"
+                onClick={() => setExpandedEmail(expandedEmail === email._id ? null : email._id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-2 bg-[#FF9B45]/10 rounded-lg">
+                      <Mail className="text-[#FF9B45]" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[#521C0D]">{email.subject}</h3>
+                      <div className="flex items-center space-x-2 text-sm text-[#521C0D]/60">
+                        <Users size={16} />
+                        <span>{email.recipientCount} recipients</span>
+                        <span>•</span>
+                        <span>{new Date(email.createdAt).toLocaleDateString()}</span>
                       </div>
-                    ) : (
-                      <span className="text-[#521C0D]/60">Custom</span>
-                    )}
-                  </td>
-                  <td className="py-4">
-                    <div className="text-[#521C0D]">
-                      {email.successCount + email.failureCount}/{email.totalRecipients}
                     </div>
-                    <div className="text-xs text-[#521C0D]/60">
-                      {email.successCount} delivered, {email.failureCount} failed
-                    </div>
-                  </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div className={`flex items-center space-x-1 ${getStatusColor(email.status)}`}>
                       {getStatusIcon(email.status)}
-                      <span className={getStatusColor(email.status)}>
-                        {email.status.charAt(0).toUpperCase() + email.status.slice(1)}
-                      </span>
+                      <span className="text-sm capitalize">{email.status}</span>
                     </div>
-                  </td>
-                  <td className="py-4 text-[#521C0D]/60">
-                    {new Date(email.createdAt).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {expandedEmail === email._id ? (
+                      <ChevronUp className="text-[#521C0D]/60" size={20} />
+                    ) : (
+                      <ChevronDown className="text-[#521C0D]/60" size={20} />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipient Details Section */}
+              {expandedEmail === email._id && (
+                <div className="border-t border-[#521C0D]/10 p-4 bg-[#F4E7E1]/10">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-medium text-[#521C0D]">Recipient Details</h4>
+                      <div className="flex items-center space-x-4 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          <span>Sent: {email.stats.sent}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                          <span>Failed: {email.stats.failed}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {email.recipients.map((recipient, index) => (
+                        <div 
+                          key={index} 
+                          className={`p-3 rounded-lg ${getRecipientStatusColor(recipient.status)}`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-medium">{recipient.name}</p>
+                              <p className="text-sm opacity-75">{recipient.email}</p>
+                            </div>
+                            <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/50">
+                              {recipient.status}
+                            </span>
+                          </div>
+                          {recipient.error && (
+                            <p className="text-sm mt-2 text-red-600">
+                              Error: {recipient.error}
+                            </p>
+                          )}
+                          {Object.keys(recipient.customFields).length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-black/10">
+                              <p className="text-xs font-medium mb-1">Custom Fields:</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {Object.entries(recipient.customFields).map(([key, value]) => (
+                                  <div key={key} className="text-xs">
+                                    <span className="font-medium">{key}:</span> {value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-
-        {emails.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <Mail className="mx-auto text-[#521C0D]/40 mb-4" size={48} />
-            <h3 className="text-xl font-semibold text-[#521C0D]/80 mb-2">No emails sent yet</h3>
-            <p className="text-[#521C0D]/60">
-              Start by creating a template or sending a new email
-            </p>
-          </div>
-        )}
-
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D5451B]"></div>
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="text-center py-8">
+          <Mail className="mx-auto text-[#521C0D]/40 mb-4" size={48} />
+          <h3 className="text-xl font-semibold text-[#521C0D]/80 mb-2">No emails sent yet</h3>
+          <p className="text-[#521C0D]/60">
+            Start by creating and sending an email campaign
+          </p>
+        </div>
+      )}
     </div>
   )
 }
