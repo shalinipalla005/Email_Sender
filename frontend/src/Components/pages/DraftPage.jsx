@@ -241,6 +241,21 @@ const DraftPage = () => {
     return { valid, invalid }
   }
 
+  const validateTemplate = (template, availableFields) => {
+    const variableRegex = /\{\{([^}]+)\}\}/g
+    const missingFields = []
+    let match
+
+    while ((match = variableRegex.exec(template)) !== null) {
+      const field = match[1]
+      if (!availableFields.includes(field)) {
+        missingFields.push(field)
+      }
+    }
+
+    return missingFields
+  }
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0]
     if (!file) return
