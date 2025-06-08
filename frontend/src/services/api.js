@@ -65,8 +65,10 @@ export const dataApi = {
       'Content-Type': 'multipart/form-data'
     }
   }),
-  getPreview: (filename) => api.get(`/data/${filename}/preview`),
-  deleteFile: (filename) => api.delete(`/data/${filename}`)
+  getFiles: () => api.get('/data'),
+  getPreview: (fileId) => api.get(`/data/${fileId}/preview`),
+  getFileData: (fileId) => api.get(`/data/${fileId}/data`),
+  deleteFile: (fileId) => api.delete(`/data/${fileId}`)
 };
 
 export default api; 

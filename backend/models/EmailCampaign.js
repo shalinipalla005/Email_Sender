@@ -11,6 +11,14 @@ const recipientSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  personalizedSubject: {
+    type: String,
+    required: true
+  },
+  personalizedBody: {
+    type: String,
+    required: true
+  },
   customFields: {
     type: Map,
     of: String

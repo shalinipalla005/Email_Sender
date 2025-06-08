@@ -26,6 +26,21 @@ const createEmail = async (req, res) => {
             message: "All fields are required",
         })
     }
+
+    // Validate recipient data structure
+    const invalidRecipients = recipientData.filter(recipient => 
+        !recipient.recipientEmail || 
+        !recipient.recipientName || 
+        !recipient.personalizedSubject || 
+        !recipient.personalizedBody
+    )
+
+    if (invalidRecipients.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid recipient data structure. Each recipient must have email, name, and personalized content.",
+        })
+    }
     
     try {
         const campaign = new EmailCampaign({
@@ -50,7 +65,7 @@ const createEmail = async (req, res) => {
             data: campaign,
         })
     } catch (error) {
-        console.log("Error in creating the email campaign", error)
+        console.error("Error in creating the email campaign", error)
         res.status(500).json({
             success: false,
             message: "Failed to create email campaign",
@@ -61,94 +76,116 @@ const createEmail = async (req, res) => {
 
 const sendBulkEmails = async (req, res) => {
     try {
-        const { mailId } = req.params
+        console.log('Starting bulk email send process...');
+        const { mailId } = req.params;
+        console.log('Campaign ID:', mailId);
 
-        const campaign = await EmailCampaign.findOne({ _id: mailId })
-
+        const campaign = await EmailCampaign.findOne({ _id: mailId });
         if (!campaign) {
+            console.log('Campaign not found:', mailId);
             return res.status(400).json({
                 success: false,
-                message: "Email campaign not found",
-            })
+                message: "Email campaign not found"
+            });
         }
+        console.log('Found campaign:', campaign._id);
 
-        const user = await User.findById(campaign.senderId)
+        const user = await User.findById(campaign.senderId);
+        console.log('Looking for user:', campaign.senderId);
 
         if (!user || !user.emailConfigs || user.emailConfigs.length === 0) {
-            throw Error('No sender email configured for the user')
+            console.log('User or email config not found:', user?._id);
+            throw Error('No sender email configured for the user');
         }
 
-        const selectedConfig = user.emailConfigs.find(config => config.senderEmail === campaign.senderEmail)
+        const selectedConfig = user.emailConfigs.find(config => config.senderEmail === campaign.senderEmail);
+        console.log('Selected email config for:', campaign.senderEmail);
 
         if (!selectedConfig) {
-            throw Error('Sender email not found')
+            console.log('Sender email config not found for:', campaign.senderEmail);
+            throw Error('Sender email configuration not found');
         }
 
-        const decryptedAppPassword = protection.decrypt(selectedConfig.encryptedAppPassword)
-        const transporter = createTransporter(campaign.senderEmail, decryptedAppPassword)
+        // Log the structure for debugging
+        console.log('Encrypted app password structure:', {
+            encrypted: selectedConfig.encryptedAppPassword.encrypted ? 'present' : 'missing',
+            iv: selectedConfig.encryptedAppPassword.iv ? 'present' : 'missing',
+            authTag: selectedConfig.encryptedAppPassword.authTag ? 'present' : 'missing'
+        });
 
-        campaign.status = 'processing'
-        await campaign.save()
+        try {
+            // Ensure we're passing the correct structure to decrypt
+            const decryptedAppPassword = protection.decrypt({
+                encrypted: selectedConfig.encryptedAppPassword.encrypted,
+                iv: selectedConfig.encryptedAppPassword.iv,
+                authTag: selectedConfig.encryptedAppPassword.authTag
+            });
+            console.log('Successfully decrypted app password');
 
-        const emailPromises = campaign.recipientData.map(async (recipient) => {
-            const { recipientName, recipientEmail, customFields } = recipient
+            // Test the decrypted password
+            const transporter = createTransporter(campaign.senderEmail, decryptedAppPassword);
+            await transporter.verify();
+            console.log('Email transporter verified successfully');
 
-            let populatedBody = campaign.body
-                .replace(/{{name}}/g, recipientName)
-                .replace(/{{email}}/g, recipientEmail)
+            campaign.status = 'processing';
+            await campaign.save();
+            console.log('Campaign status updated to processing');
 
-            // Replace custom fields
-            if (customFields) {
-                for (const [key, value] of Object.entries(customFields)) {
-                    populatedBody = populatedBody.replace(new RegExp(`{{${key}}}`, 'g'), value)
+            const emailPromises = campaign.recipientData.map(async (recipient) => {
+                const { recipientName, recipientEmail, personalizedSubject, personalizedBody } = recipient;
+
+                const mailOptions = {
+                    from: `${user.userName} <${campaign.senderEmail}>`,
+                    to: recipientEmail,
+                    subject: personalizedSubject || campaign.subject,
+                    html: personalizedBody || campaign.body,
+                    text: convert(personalizedBody || campaign.body),
+                };
+
+                try {
+                    await transporter.sendMail(mailOptions);
+                    recipient.status = 'sent';
+                    campaign.stats.sent++;
+                    console.log('Email sent successfully to:', recipientEmail);
+                    return {
+                        recipientEmail,
+                        status: 'sent',
+                    };
+                } catch (error) {
+                    console.error(`Failed to send email to ${recipientEmail}:`, error.message);
+                    recipient.status = 'failed';
+                    recipient.error = error.message;
+                    campaign.stats.failed++;
+                    return {
+                        recipientEmail,
+                        status: 'failed',
+                        error: error.message
+                    };
                 }
-            }
+            });
 
-            const mailOptions = {
-                from: `${user.userName} <${campaign.senderEmail}>`,
-                to: recipientEmail,
-                subject: campaign.subject,
-                html: populatedBody,
-                text: convert(populatedBody),
-            }
+            console.log('Starting to send emails to all recipients...');
+            const results = await Promise.allSettled(emailPromises);
+            console.log('Email sending completed. Results:', results.length);
 
-            try {
-                await transporter.sendMail(mailOptions)
-                recipient.status = 'sent'
-                campaign.stats.sent++
-                return {
-                    recipientEmail,
-                    status: 'sent',
-                }
-            } catch (error) {
-                console.log(`Failed to send email to ${recipientEmail}:`, error)
-                recipient.status = 'failed'
-                recipient.error = error.message
-                campaign.stats.failed++
-                return {
-                    recipientEmail, 
-                    status: 'failed',
-                    error: error.message
-                }
-            }
-        })
+            campaign.status = campaign.stats.failed === 0 ? 'completed' : 'failed';
+            await campaign.save();
+            console.log('Campaign status updated to:', campaign.status);
 
-        const results = await Promise.allSettled(emailPromises)
-        
-        campaign.status = campaign.stats.failed === 0 ? 'completed' : 'failed'
-        await campaign.save()
-
-        res.status(200).json({
-            success: true,
-            message: `Email campaign completed. ${campaign.stats.sent} sent, ${campaign.stats.failed} failed`
-        })
+            res.status(200).json({
+                success: true,
+                message: `Email campaign completed. ${campaign.stats.sent} sent, ${campaign.stats.failed} failed`
+            });
+        } catch (error) {
+            console.error('Error in email processing:', error);
+            throw error;
+        }
     } catch (error) {
-        console.log('Error in sending bulk emails', error)
+        console.error("Error in sending bulk emails:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to send bulk emails',
-            error: error.message
-        })
+            message: error.message || "Failed to send emails"
+        });
     }
 }
 
@@ -183,16 +220,25 @@ const addEmailConfig = async (req, res) => {
             })
         }
 
-        const encrypted = protection.encrypt(appPassword)
+        // Encrypt the app password
+        const encryptedData = protection.encrypt(appPassword)
 
         // Check if email already exists
         const existingConfig = user.emailConfigs.find(config => config.senderEmail === senderEmail)
         if (existingConfig) {
-            existingConfig.encryptedAppPassword = encrypted
+            existingConfig.encryptedAppPassword = {
+                encrypted: encryptedData.encrypted,
+                iv: encryptedData.iv,
+                authTag: encryptedData.authTag
+            }
         } else {
             user.emailConfigs.push({
                 senderEmail,
-                encryptedAppPassword: encrypted
+                encryptedAppPassword: {
+                    encrypted: encryptedData.encrypted,
+                    iv: encryptedData.iv,
+                    authTag: encryptedData.authTag
+                }
             })
         }
 
@@ -204,7 +250,7 @@ const addEmailConfig = async (req, res) => {
             emailConfigAdded: senderEmail
         })
     } catch (error) {
-        console.log("Add email config error: ", error)
+        console.error("Add email config error: ", error)
         res.status(500).json({
             success: false,
             message: 'Failed to add email config',
@@ -212,6 +258,44 @@ const addEmailConfig = async (req, res) => {
         })
     }
 }
+
+const deleteEmailConfig = async (req, res) => {
+    try {
+        const { senderEmail } = req.body;
+
+        if (!senderEmail) {
+            return res.status(400).json({
+                success: false,
+                message: "Sender email is required"
+            });
+        }
+
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Remove the email config
+        user.emailConfigs = user.emailConfigs.filter(config => config.senderEmail !== senderEmail);
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Email configuration deleted successfully'
+        });
+    } catch (error) {
+        console.error("Delete email config error: ", error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete email config',
+            error: error.message
+        });
+    }
+};
 
 const getSentEmails = async (req, res) => {
     try {
@@ -226,7 +310,14 @@ const getSentEmails = async (req, res) => {
             recipientCount: campaign.recipientData.length,
             status: campaign.status,
             createdAt: campaign.createdAt,
-            stats: campaign.stats
+            stats: campaign.stats,
+            recipients: campaign.recipientData.map(recipient => ({
+                name: recipient.recipientName,
+                email: recipient.recipientEmail,
+                status: recipient.status,
+                error: recipient.error || null,
+                customFields: recipient.customFields || {}
+            }))
         }))
 
         res.status(200).json(sentEmails)
@@ -272,6 +363,7 @@ module.exports = {
     createEmail,
     sendBulkEmails,
     addEmailConfig,
+    deleteEmailConfig,
     getSentEmails,
     getEmailStats
 }

@@ -6,6 +6,7 @@ const {
     createEmail,
     sendBulkEmails,
     addEmailConfig,
+    deleteEmailConfig,
     getSentEmails,
     getEmailStats
 } = require('../controllers/emailController');
@@ -46,5 +47,10 @@ router.get('/sent', auth, getSentEmails);
 
 // Get email stats
 router.get('/stats', auth, getEmailStats);
+
+// Delete email configuration
+router.post('/delete-email-config', auth, [
+    body('senderEmail').isEmail().withMessage('Valid sender email is required')
+], deleteEmailConfig);
 
 module.exports = router; 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, X, Download, Trash2, Eye } from 'lucide-react'
+import { Upload, X, Download, Trash2, Eye, FileText, Users, Clock } from 'lucide-react'
 import { dataApi } from '../../services/api'
 
 const DataPage = () => {
@@ -36,8 +36,16 @@ const DataPage = () => {
       const formData = new FormData()
       formData.append('file', file)
 
-      await dataApi.uploadFile(formData)
+      const response = await dataApi.uploadFile(formData)
       await fetchFiles()
+      
+      if (response.data.success) {
+        setPreviewData({
+          fileId: response.data.data._id,
+          fields: response.data.data.fields,
+          preview: response.data.data.preview
+        })
+      }
     } catch (error) {
       setError(error.response?.data?.message || 'Error uploading file')
     } finally {
@@ -61,8 +69,16 @@ const DataPage = () => {
       try {
         setLoading(true)
         setError(null)
-        await dataApi.uploadFile(formData)
+        const response = await dataApi.uploadFile(formData)
         await fetchFiles()
+        
+        if (response.data.success) {
+          setPreviewData({
+            fileId: response.data.data._id,
+            fields: response.data.data.fields,
+            preview: response.data.data.preview
+          })
+        }
       } catch (error) {
         setError(error.response?.data?.message || 'Error uploading file')
       } finally {
@@ -76,7 +92,11 @@ const DataPage = () => {
       setLoading(true)
       setError(null)
       const response = await dataApi.getPreview(fileId)
-      setPreviewData(response.data)
+      setPreviewData({
+        fileId,
+        fields: response.data.data.fields,
+        preview: response.data.data.preview
+      })
     } catch (error) {
       setError(error.response?.data?.message || 'Error loading preview')
     } finally {
@@ -156,29 +176,40 @@ const DataPage = () => {
           <h2 className="text-xl font-semibold text-[#521C0D]">Uploaded Files</h2>
           <div className="grid gap-4">
             {files.map(file => (
-              <div key={file._id} className="bg-white rounded-xl p-4 shadow-md flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2 bg-[#FF9B45]/10 rounded-lg">
-                    <Download className="text-[#FF9B45]" size={24} />
+              <div key={file._id} className="bg-white rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-2 bg-[#FF9B45]/10 rounded-lg">
+                      <FileText className="text-[#FF9B45]" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[#521C0D]">{file.originalName}</h3>
+                      <div className="flex items-center space-x-4 text-sm text-[#521C0D]/60">
+                        <div className="flex items-center space-x-1">
+                          <Users size={16} />
+                          <span>{file.rowCount} contacts</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock size={16} />
+                          <span>{new Date(file.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-[#521C0D]">{file.name}</h3>
-                    <p className="text-sm text-[#521C0D]/60">{file.rows} rows</p>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handlePreview(file._id)}
+                      className="p-2 hover:bg-[#FF9B45]/10 rounded-lg transition-colors duration-200"
+                    >
+                      <Eye className="text-[#521C0D]" size={20} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(file._id)}
+                      className="p-2 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                    >
+                      <Trash2 className="text-red-500" size={20} />
+                    </button>
                   </div>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handlePreview(file._id)}
-                    className="p-2 hover:bg-[#FF9B45]/10 rounded-lg transition-colors duration-200"
-                  >
-                    <Eye className="text-[#521C0D]" size={20} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(file._id)}
-                    className="p-2 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                  >
-                    <Trash2 className="text-red-500" size={20} />
-                  </button>
                 </div>
               </div>
             ))}

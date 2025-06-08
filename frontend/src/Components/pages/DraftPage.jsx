@@ -84,9 +84,10 @@ const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
             <div className="p-6 bg-white min-h-[300px]">
               {body ? (
                 <div className="prose max-w-none">
-                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
-                    {body}
-                  </div>
+                  <div 
+                    className="text-gray-800 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: body }}
+                  />
                 </div>
               ) : (
                 <div className="text-center text-gray-500 py-12">
@@ -330,6 +331,9 @@ const DraftPage = () => {
         processedTemplate = 'No email content provided. Please add your email template.'
       }
 
+      // Format the preview content with HTML
+      processedTemplate = processEmailContent(processedTemplate)
+
       const previewContent = {
         subject: processedSubject,
         body: processedTemplate,
@@ -347,6 +351,20 @@ const DraftPage = () => {
       setError('Error processing template')
     }
   }
+  
+  const processEmailContent = (content) => {
+    // Convert line breaks to HTML
+    let processedContent = content.replace(/\n/g, '<br>');
+    
+    // Add default styling
+    processedContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        ${processedContent}
+      </div>
+    `;
+    
+    return processedContent;
+  };
 
   const handleSendEmails = async () => {
     if (!data.length || !template || !subject || !selectedEmailConfig) {
@@ -369,22 +387,50 @@ const DraftPage = () => {
       setLoading(true)
       setError(null)
 
-      // Create email campaign
-      const campaignData = {
-        subject,
-        body: template,
-        senderEmail: selectedEmailConfig,
-        recipientData: data.map(row => ({
-          recipientName: row.name || row.email.split('@')[0],
-          recipientEmail: row.email,
-          customFields: Object.keys(row).reduce((acc, key) => {
+      // Process each recipient with personalized content
+      const processedRecipients = data
+        .filter(row => row.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))
+        .map(row => {
+          let processedSubject = subject
+          let processedBody = template
+          
+          // Replace variables in both subject and body
+          availableFields.forEach(field => {
+            const regex = new RegExp(`\\{\\{${field}\\}\\}`, 'g')
+            const value = row[field] || `[${field}]`
+            processedSubject = processedSubject.replace(regex, value)
+            processedBody = processedBody.replace(regex, value)
+          })
+
+          // Format the email body with HTML
+          processedBody = processEmailContent(processedBody)
+
+          // Prepare custom fields
+          const customFields = {}
+          Object.keys(row).forEach(key => {
             if (key !== 'name' && key !== 'email') {
-              acc[key] = row[key]
+              customFields[key] = String(row[key] || '')
             }
-            return acc
-          }, {})
-        }))
+          })
+
+          return {
+            recipientName: row.name || row.email.split('@')[0],
+            recipientEmail: row.email,
+            personalizedSubject: processedSubject,
+            personalizedBody: processedBody,
+            customFields
+          }
+        })
+
+      // Create email campaign with processed data
+      const campaignData = {
+        subject: subject,
+        body: processEmailContent(template),
+        senderEmail: selectedEmailConfig,
+        recipientData: processedRecipients
       }
+
+      console.log('Processed Campaign Data:', campaignData)
 
       // Create the campaign
       const createResponse = await emailApi.createCampaign(campaignData)
@@ -414,7 +460,7 @@ const DraftPage = () => {
         fileInputRef.current.value = ''
       }
 
-      setSuccess(sendResponse.data.message)
+      setSuccess(`Campaign sent successfully to ${processedRecipients.length} recipients!`)
     } catch (error) {
       console.error('Email sending error:', error)
       setError(error.response?.data?.message || error.message || 'Error sending emails')
