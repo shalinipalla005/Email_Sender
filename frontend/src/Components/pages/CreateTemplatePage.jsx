@@ -11,8 +11,8 @@ const CreateTemplatePage = ({ onPreview }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    subject: '',
     category: 'General',
+    subject: '',
     content: '',
     variables: [
       { name: 'name', description: 'Recipient\'s name' },
@@ -41,8 +41,8 @@ const CreateTemplatePage = ({ onPreview }) => {
       setFormData({
         name: editingTemplate.name,
         description: editingTemplate.description,
-        subject: editingTemplate.subject,
         category: editingTemplate.category,
+        subject: editingTemplate.subject || '',
         content: editingTemplate.content,
         variables: editingTemplate.variables
       })
@@ -94,8 +94,8 @@ const CreateTemplatePage = ({ onPreview }) => {
     setSampleData(newSampleData)
   }
 
-  const insertVariable = (variableName) => {
-    const textarea = document.getElementById('content')
+  const insertVariable = (variableName, targetField = 'content') => {
+    const textarea = document.getElementById(targetField)
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const text = textarea.value
@@ -105,7 +105,7 @@ const CreateTemplatePage = ({ onPreview }) => {
     
     setFormData(prev => ({
       ...prev,
-      content: newText
+      [targetField]: newText
     }))
   }
 
@@ -152,13 +152,20 @@ const CreateTemplatePage = ({ onPreview }) => {
 
   const getPreviewContent = () => {
     let content = formData.content
-    let subject = formData.subject
     formData.variables.forEach(variable => {
       const regex = new RegExp(`{{${variable.name}}}`, 'g')
       content = content.replace(regex, sampleData[variable.name] || `[${variable.name}]`)
+    })
+    return content
+  }
+
+  const getPreviewSubject = () => {
+    let subject = formData.subject
+    formData.variables.forEach(variable => {
+      const regex = new RegExp(`{{${variable.name}}}`, 'g')
       subject = subject.replace(regex, sampleData[variable.name] || `[${variable.name}]`)
     })
-    return { content, subject }
+    return subject
   }
 
   const handlePreview = () => {
@@ -167,7 +174,7 @@ const CreateTemplatePage = ({ onPreview }) => {
     onPreview({
       open: true,
       content: {
-        subject: formData.name,
+        subject: getPreviewSubject() || formData.name,
         body: formData.content,
         recipient: 'preview@example.com',
         totalRecipients: 1
@@ -182,24 +189,14 @@ const CreateTemplatePage = ({ onPreview }) => {
       setLoading(true)
       setError(null)
 
-      const templateData = {
-        templateName: formData.name,
-        description: formData.description,
-        category: formData.category,
-        subject: formData.subject,
-        content: formData.content,
-        variables: formData.variables
-      }
-
       if (editingTemplate) {
-        await templateApi.update(editingTemplate._id, templateData)
+        await templateApi.update(editingTemplate._id, formData)
       } else {
-        await templateApi.create(templateData)
+        await templateApi.create(formData)
       }
 
       navigate('/templates')
     } catch (error) {
-      console.error('Error saving template:', error)
       setError(error.response?.data?.message || 'Error saving template')
     } finally {
       setLoading(false)
@@ -302,7 +299,7 @@ const CreateTemplatePage = ({ onPreview }) => {
 
               <div>
                 <label htmlFor="subject" className="block text-sm font-medium text-[#521C0D] mb-2">
-                  Email Subject
+                  Email Subject Line
                 </label>
                 <input
                   type="text"
@@ -310,7 +307,7 @@ const CreateTemplatePage = ({ onPreview }) => {
                   name="subject"
                   value={formData.subject}
                   onChange={handleInputChange}
-                  placeholder="Enter email subject line"
+                  placeholder="e.g., Welcome to {{company}}, {{name}}!"
                   className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent transition-all duration-200"
                   required
                   disabled={loading}
@@ -396,28 +393,32 @@ const CreateTemplatePage = ({ onPreview }) => {
                   />
                 </div>
               ) : (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-[#521C0D]">
-                      Preview
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#521C0D] mb-2">
+                      Subject Preview
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowVariableHelp(!showVariableHelp)}
-                      className="text-[#521C0D]/60 hover:text-[#521C0D] transition-colors"
-                    >
-                      <HelpCircle size={20} />
-                    </button>
+                    <div className="w-full px-4 py-3 bg-white rounded-xl text-[#521C0D] border border-[#521C0D]/10 font-semibold">
+                      {getPreviewSubject() || 'No subject'}
+                    </div>
                   </div>
-                  <div className="space-y-4">
-                    <div className="w-full px-4 py-3 bg-white rounded-xl text-[#521C0D] border border-[#521C0D]/10">
-                      <h4 className="font-medium mb-1">Subject:</h4>
-                      <div dangerouslySetInnerHTML={{ __html: getPreviewContent().subject }} />
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-[#521C0D]">
+                        Content Preview
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowVariableHelp(!showVariableHelp)}
+                        className="text-[#521C0D]/60 hover:text-[#521C0D] transition-colors"
+                      >
+                        <HelpCircle size={20} />
+                      </button>
                     </div>
-                    <div className="w-full min-h-[300px] px-4 py-3 bg-white rounded-xl text-[#521C0D] overflow-y-auto border border-[#521C0D]/10">
-                      <h4 className="font-medium mb-2">Content:</h4>
-                      <div dangerouslySetInnerHTML={{ __html: getPreviewContent().content }} />
-                    </div>
+                    <div
+                      className="w-full min-h-[300px] px-4 py-3 bg-white rounded-xl text-[#521C0D] overflow-y-auto border border-[#521C0D]/10"
+                      dangerouslySetInnerHTML={{ __html: getPreviewContent() }}
+                    />
                   </div>
                 </div>
               )}
@@ -458,13 +459,27 @@ const CreateTemplatePage = ({ onPreview }) => {
                   key={index}
                   className="flex items-center justify-between p-3 bg-white rounded-lg hover:bg-[#FF9B45]/10 transition-colors group border border-[#521C0D]/10"
                 >
-                  <button
-                    onClick={() => insertVariable(variable.name)}
-                    className="flex-1 text-left"
-                  >
-                    <div className="text-[#521C0D] font-mono">{'{{' + variable.name + '}}'}</div>
+                  <div className="flex-1">
+                    <div className="flex gap-2 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => insertVariable(variable.name)}
+                        className="text-[#521C0D] font-mono text-sm bg-[#F4E7E1] px-2 py-1 rounded hover:bg-[#FF9B45]/20 transition-colors"
+                        title="Insert into content"
+                      >
+                        {'{{' + variable.name + '}}'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertVariable(variable.name, 'subject')}
+                        className="text-[#521C0D] text-xs bg-[#FF9B45]/20 px-2 py-1 rounded hover:bg-[#FF9B45]/30 transition-colors"
+                        title="Insert into subject"
+                      >
+                        Subject
+                      </button>
+                    </div>
                     <div className="text-[#521C0D]/60 text-sm">{variable.description}</div>
-                  </button>
+                  </div>
                   <button
                     onClick={() => handleRemoveVariable(index)}
                     className="opacity-0 group-hover:opacity-100 text-[#D5451B]/60 hover:text-[#D5451B] transition-all px-2"
@@ -508,7 +523,8 @@ const CreateTemplatePage = ({ onPreview }) => {
                 <div className="space-y-2">
                   <p className="font-semibold">To use variables:</p>
                   <ol className="list-decimal list-inside space-y-1 text-[#521C0D]/70">
-                    <li>Click on a variable from the list to insert it</li>
+                    <li>Click on a variable button to insert it into content</li>
+                    <li>Click "Subject" button to insert into subject line</li>
                     <li>Variables will be replaced with actual data when sending emails</li>
                     <li>Make sure your CSV/Excel columns match the variable names</li>
                   </ol>
@@ -525,4 +541,4 @@ const CreateTemplatePage = ({ onPreview }) => {
   )
 }
 
-export default CreateTemplatePage 
+export default CreateTemplatePage

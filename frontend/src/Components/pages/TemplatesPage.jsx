@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Copy, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Copy, FileText, Mail } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { templateApi } from '../../services/api'
 
@@ -26,13 +26,9 @@ const TemplatesPage = () => {
       } else {
         response = await templateApi.getByCategory(selectedCategory)
       }
-      // Ensure we have an array of templates, even if empty
-      const templatesData = response?.data?.data || []
-      setTemplates(templatesData)
+      setTemplates(response.data)
     } catch (error) {
-      console.error('Error fetching templates:', error)
       setError(error.response?.data?.message || 'Error fetching templates')
-      setTemplates([]) // Reset to empty array on error
     } finally {
       setLoading(false)
     }
@@ -68,9 +64,10 @@ const TemplatesPage = () => {
       const newTemplate = {
         name: `${template.name} (Copy)`,
         description: template.description,
+        subject: template.subject || '',
         content: template.content,
-        subject: template.subject,
-        category: template.category
+        category: template.category,
+        variables: template.variables || []
       }
       const response = await templateApi.create(newTemplate)
       setTemplates([response.data, ...templates])
@@ -95,6 +92,16 @@ const TemplatesPage = () => {
     }
   }
 
+  const truncateText = (text, maxLength = 60) => {
+    if (!text) return 'No subject'
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+  }
+
+  const stripHtmlTags = (html) => {
+    if (!html) return ''
+    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -115,7 +122,6 @@ const TemplatesPage = () => {
         </div>
       )}
 
-      {/* Category Filter */}
       <div className="flex gap-2 flex-wrap">
         {categories.map(category => (
           <button
@@ -133,7 +139,6 @@ const TemplatesPage = () => {
         ))}
       </div>
 
-      {/* Templates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {templates.map((template) => (
           <div
@@ -143,25 +148,50 @@ const TemplatesPage = () => {
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <h3 className="text-xl font-semibold text-[#521C0D] mb-2">{template.name}</h3>
-                <p className="text-[#521C0D]/70 text-sm mb-2">{template.subject}</p>
                 <p className="text-[#521C0D]/70 text-sm mb-3">{template.description}</p>
                 <div className={`inline-block px-3 py-1 rounded-full text-xs border ${getCategoryColor(template.category)}`}>
                   {template.category}
                 </div>
               </div>
-              <FileText className="text-[#521C0D]/60 group-hover:text-[#521C0D] transition-colors" size={24} />
+              <Mail className="text-[#521C0D]/60 group-hover:text-[#521C0D] transition-colors" size={24} />
             </div>
+
+            {template.subject && (
+              <div className="mb-3">
+                <div className="bg-[#FF9B45]/10 rounded-lg p-3 border border-[#FF9B45]/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mail size={14} className="text-[#D5451B]" />
+                    <span className="text-xs font-medium text-[#D5451B]">Subject:</span>
+                  </div>
+                  <p className="text-[#521C0D] text-sm font-medium">
+                    {truncateText(template.subject, 50)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="mb-4">
               <div className="bg-white rounded-lg p-3 max-h-20 overflow-hidden border border-[#521C0D]/10">
                 <p className="text-[#521C0D]/80 text-sm line-clamp-3">
-                  {template.content}
+                  {stripHtmlTags(template.content)}
                 </p>
               </div>
             </div>
 
+            {template.variables && template.variables.length > 0 && (
+              <div className="mb-3">
+                <div className="bg-[#521C0D]/10 rounded-lg px-3 py-2 border border-[#521C0D]/20">
+                  <p className="text-xs text-[#521C0D]/70">
+                    <span className="font-medium">{template.variables.length}</span> variables: {' '}
+                    {template.variables.slice(0, 3).map(v => `{{${v.name}}}`).join(', ')}
+                    {template.variables.length > 3 && '...'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-xs text-[#521C0D]/60 mb-4">
-              <span>Used {template.useCount} times</span>
+              <span>Used {template.useCount || 0} times</span>
               <span>{new Date(template.lastUsed || template.createdAt).toLocaleDateString()}</span>
             </div>
 
@@ -202,7 +232,7 @@ const TemplatesPage = () => {
 
       {templates.length === 0 && !loading && (
         <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-12 text-center border border-[#521C0D]/10">
-          <FileText className="mx-auto text-[#521C0D]/40 mb-4" size={48} />
+          <Mail className="mx-auto text-[#521C0D]/40 mb-4" size={48} />
           <h3 className="text-xl font-semibold text-[#521C0D]/80 mb-2">No templates found</h3>
           <p className="text-[#521C0D]/60">
             {selectedCategory === 'All' 
