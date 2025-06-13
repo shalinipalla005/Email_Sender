@@ -12,9 +12,9 @@ dotenv.config();
 const app = express();
 
 // CORS configuration
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://email-sender-1-fyya.onrender.com']
-  : ['http://localhost:3000', 'http://localhost:5173', 'https://email-sender-1-fyya.onrender.com'];
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
 
 app.use(cors({
   origin: allowedOrigins,
