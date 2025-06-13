@@ -12,8 +12,12 @@ dotenv.config();
 const app = express();
 
 // CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://email-sender-1-fyya.onrender.com']
+  : ['http://localhost:3000', 'http://localhost:5173', 'https://email-sender-1-fyya.onrender.com'];
+
 app.use(cors({
-  origin: ['https://email-sender-1-fyya.onrender.com'],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
