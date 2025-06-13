@@ -26,9 +26,16 @@ const TemplatesPage = () => {
       } else {
         response = await templateApi.getByCategory(selectedCategory)
       }
-      setTemplates(response.data)
+      if (response.data.success && Array.isArray(response.data.data)) {
+        setTemplates(response.data.data)
+      } else {
+        setTemplates([])
+        setError('Invalid response format from server')
+      }
     } catch (error) {
+      console.error('Error fetching templates:', error)
       setError(error.response?.data?.message || 'Error fetching templates')
+      setTemplates([])
     } finally {
       setLoading(false)
     }
