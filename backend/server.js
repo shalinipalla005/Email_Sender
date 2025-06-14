@@ -11,14 +11,13 @@ dotenv.config();
 
 const app = express();
 
-// Normalise and deduplicate
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://email-sender-vs94.vercel.app,https://email-sender-iy39.onrender.com')
+const allowedOrigins = process.env.FRONTEND_URL
   .split(',')
-  .map(o => o.trim().replace(/\/+$/, ''));   // strip trailing “/”
-  
+  .map(o => o.trim().replace(/\/+$/, ''));
+
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);               
+    if (!origin) return cb(null, true);
     return allowedOrigins.includes(origin)
       ? cb(null, true)
       : cb(new Error(`Origin ${origin} not allowed by CORS`));
@@ -30,6 +29,16 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // preflight
+
+// Separate CORS errors
+app.use((err, req, res, next) => {
+  if (err.message && err.message.includes('not allowed by CORS')) {
+    return res.status(403).json({ success: false, message: err.message });
+  }
+  console.error(err.stack);
+  res.status(500).json({ success: false, message: 'Something went wrong!', error: err.message });
+});
 
 
 // Body parser middleware
@@ -42,14 +51,6 @@ app.use('/api/emails', emailRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/data', dataRoutes);
 
-// Options handling for CORS preflight
-app.options('*', cors());
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: 'Something went wrong!', error: err.message });
-});
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI)
