@@ -12,7 +12,7 @@ dotenv.config();
 const app = express();
 
 // Normalise and deduplicate
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://email-sender-vs94.vercel.app')
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://email-sender-vs94.vercel.app,https://email-sender-iy39.onrender.com')
   .split(',')
   .map(o => o.trim().replace(/\/+$/, ''));   // strip trailing “/”
   
