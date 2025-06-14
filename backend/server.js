@@ -11,19 +11,26 @@ dotenv.config();
 
 const app = express();
 
-// CORS configuration
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'https://email-sender-vs94.vercel.app/'];
-
-app.use(cors({
-  origin: allowedOrigins,
+// Normalise and deduplicate
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://email-sender-vs94.vercel.app')
+  .split(',')
+  .map(o => o.trim().replace(/\/+$/, ''));   // strip trailing “/”
+  
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);               
+    return allowedOrigins.includes(origin)
+      ? cb(null, true)
+      : cb(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  preflightContinue: false,
   optionsSuccessStatus: 204
-}));
+};
+
+app.use(cors(corsOptions));
+
 
 // Body parser middleware
 app.use(express.json());
@@ -59,3 +66,6 @@ mongoose.connect(process.env.MONGODB_URI)
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
 }); 
+
+// For Vercel/Firebase
+module.exports = app;
