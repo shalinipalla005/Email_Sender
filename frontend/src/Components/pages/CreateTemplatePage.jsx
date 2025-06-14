@@ -9,7 +9,7 @@ const CreateTemplatePage = ({ onPreview }) => {
   const editingTemplate = location.state?.template
 
   const [formData, setFormData] = useState({
-    name: '',
+    templateName: '',
     description: '',
     category: 'General',
     subject: '',
@@ -39,7 +39,7 @@ const CreateTemplatePage = ({ onPreview }) => {
   useEffect(() => {
     if (editingTemplate) {
       setFormData({
-        name: editingTemplate.name,
+        templateName: editingTemplate.name,
         description: editingTemplate.description,
         category: editingTemplate.category,
         subject: editingTemplate.subject || '',
@@ -174,7 +174,7 @@ const CreateTemplatePage = ({ onPreview }) => {
     onPreview({
       open: true,
       content: {
-        subject: getPreviewSubject() || formData.name,
+        subject: getPreviewSubject() || formData.templateName,
         body: formData.content,
         recipient: 'preview@example.com',
         totalRecipients: 1
@@ -242,14 +242,14 @@ const CreateTemplatePage = ({ onPreview }) => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-[#521C0D] mb-2">
+                  <label htmlFor="templateName" className="block text-sm font-medium text-[#521C0D] mb-2">
                     Template Name
                   </label>
                   <input
                     type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
+                    id="templateName"
+                    name="templateName"
+                    value={formData.templateName}
                     onChange={handleInputChange}
                     placeholder="e.g., Welcome Email"
                     className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent transition-all duration-200"
