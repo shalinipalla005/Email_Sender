@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer")
-const User = require("../models/User")
+const User = require("../models/User") // Make sure you're using the correct User model
 const EmailCampaign = require('../models/EmailCampaign')
 const { convert } = require('html-to-text')
 const protection = require("../utils/encryptionUtils")
@@ -15,6 +15,38 @@ const createTransporter = (email, password) => {
         },
     })
     return transporter
+}
+
+// GET EMAIL CONFIGURATIONS - Add this function
+const getEmailConfigs = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id)
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        // Return email configurations without passwords (for security)
+        const emailConfigs = user.emailConfigs.map(config => ({
+            senderEmail: config.senderEmail,
+            _id: config._id
+        }))
+
+        res.status(200).json({
+            success: true,
+            data: emailConfigs
+        })
+    } catch (error) {
+        console.error("Error fetching email configs:", error)
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch email configurations',
+            error: error.message
+        })
+    }
 }
 
 const createEmail = async (req, res) => {
@@ -95,7 +127,10 @@ const sendBulkEmails = async (req, res) => {
 
         if (!user || !user.emailConfigs || user.emailConfigs.length === 0) {
             console.log('User or email config not found:', user?._id);
-            throw Error('No sender email configured for the user');
+            return res.status(400).json({
+                success: false,
+                message: 'No sender email configured. Please add an email configuration first.'
+            });
         }
 
         const selectedConfig = user.emailConfigs.find(config => config.senderEmail === campaign.senderEmail);
@@ -103,7 +138,10 @@ const sendBulkEmails = async (req, res) => {
 
         if (!selectedConfig) {
             console.log('Sender email config not found for:', campaign.senderEmail);
-            throw Error('Sender email configuration not found');
+            return res.status(400).json({
+                success: false,
+                message: 'Sender email configuration not found. Please reconfigure your email settings.'
+            });
         }
 
         // Log the structure for debugging
@@ -178,7 +216,13 @@ const sendBulkEmails = async (req, res) => {
             });
         } catch (error) {
             console.error('Error in email processing:', error);
-            throw error;
+            campaign.status = 'failed';
+            await campaign.save();
+            
+            res.status(500).json({
+                success: false,
+                message: error.message || "Failed to send emails"
+            });
         }
     } catch (error) {
         console.error("Error in sending bulk emails:", error);
@@ -213,25 +257,31 @@ const addEmailConfig = async (req, res) => {
         try {
             const transporter = createTransporter(senderEmail, appPassword)
             await transporter.verify()
+            console.log('Email configuration verified successfully for:', senderEmail)
         } catch (error) {
+            console.error('Email verification failed:', error.message)
             return res.status(400).json({
                 success: false,
-                message: 'Invalid email credentials. Please check your email and app password.'
+                message: 'Invalid email credentials. Please check your email and app password. Make sure 2-factor authentication is enabled and you are using an app password.'
             })
         }
 
         // Encrypt the app password
         const encryptedData = protection.encrypt(appPassword)
 
-        // Check if email already exists
-        const existingConfig = user.emailConfigs.find(config => config.senderEmail === senderEmail)
-        if (existingConfig) {
-            existingConfig.encryptedAppPassword = {
+        // Check if email already exists and update, or add new
+        const existingConfigIndex = user.emailConfigs.findIndex(config => config.senderEmail === senderEmail)
+        
+        if (existingConfigIndex !== -1) {
+            // Update existing configuration
+            user.emailConfigs[existingConfigIndex].encryptedAppPassword = {
                 encrypted: encryptedData.encrypted,
                 iv: encryptedData.iv,
                 authTag: encryptedData.authTag
             }
+            console.log('Updated existing email configuration for:', senderEmail)
         } else {
+            // Add new configuration
             user.emailConfigs.push({
                 senderEmail,
                 encryptedAppPassword: {
@@ -240,20 +290,21 @@ const addEmailConfig = async (req, res) => {
                     authTag: encryptedData.authTag
                 }
             })
+            console.log('Added new email configuration for:', senderEmail)
         }
 
         await user.save()
 
         res.status(200).json({
             success: true,
-            message: "Email configuration added successfully",
+            message: `Email configuration ${existingConfigIndex !== -1 ? 'updated' : 'added'} successfully`,
             emailConfigAdded: senderEmail
         })
     } catch (error) {
         console.error("Add email config error: ", error)
         res.status(500).json({
             success: false,
-            message: 'Failed to add email config',
+            message: 'Failed to add email configuration',
             error: error.message
         })
     }
@@ -279,9 +330,21 @@ const deleteEmailConfig = async (req, res) => {
             });
         }
 
+        // Check if the configuration exists
+        const configExists = user.emailConfigs.some(config => config.senderEmail === senderEmail);
+        
+        if (!configExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Email configuration not found"
+            });
+        }
+
         // Remove the email config
         user.emailConfigs = user.emailConfigs.filter(config => config.senderEmail !== senderEmail);
         await user.save();
+
+        console.log('Deleted email configuration for:', senderEmail);
 
         res.status(200).json({
             success: true,
@@ -291,7 +354,7 @@ const deleteEmailConfig = async (req, res) => {
         console.error("Delete email config error: ", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete email config',
+            message: 'Failed to delete email configuration',
             error: error.message
         });
     }
@@ -364,6 +427,7 @@ module.exports = {
     sendBulkEmails,
     addEmailConfig,
     deleteEmailConfig,
+    getEmailConfigs, // Add this export
     getSentEmails,
     getEmailStats
 }

@@ -5,7 +5,6 @@ import Papa from 'papaparse'
 import { emailApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
-// Email Preview Modal Component (keeping the existing one)
 const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
   if (!isOpen || !previewData) return null
 
@@ -109,8 +108,7 @@ const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
           {body && body.includes('{{') && (
             <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <div className="flex items-center gap-2 text-yellow-800 mb-2">
-                <AlertCircle size={16} />
-                <span className="text-sm font-medium">Template Variables Detected</span>
+                <span className="text-sm font-medium">⚠️ Template Variables Detected</span>
               </div>
               <p className="text-sm text-yellow-700">
                 If you see {`{{variable}}`} text in the preview, it means those fields weren't found in your data. 
@@ -173,7 +171,8 @@ const DraftPage = () => {
   const [selectedEmailConfig, setSelectedEmailConfig] = useState('')
   const [showEmailConfigModal, setShowEmailConfigModal] = useState(false)
   const [newEmailConfig, setNewEmailConfig] = useState({ senderEmail: '', appPassword: '' })
-  const [configsLoading, setConfigsLoading] = useState(true)
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
+  const [emailToDelete, setEmailToDelete] = useState('')
   const fileInputRef = useRef(null)
 
   // Fetch email configurations on mount
@@ -183,23 +182,13 @@ const DraftPage = () => {
 
   const fetchEmailConfigs = async () => {
     try {
-      setConfigsLoading(true)
       const response = await emailApi.getEmailConfigs()
-      
-      if (response.data && response.data.success) {
-        setEmailConfigs(response.data.data || [])
-        if (response.data.data && response.data.data.length > 0) {
-          setSelectedEmailConfig(response.data.data[0].senderEmail)
-        }
-      } else {
-        setEmailConfigs([])
+      setEmailConfigs(response.data)
+      if (response.data.length > 0) {
+        setSelectedEmailConfig(response.data[0].senderEmail)
       }
     } catch (error) {
       console.error('Error fetching email configs:', error)
-      setEmailConfigs([])
-      // Don't show error for empty configs, it's normal for new users
-    } finally {
-      setConfigsLoading(false)
     }
   }
 
@@ -213,13 +202,6 @@ const DraftPage = () => {
         return;
       }
 
-      // Basic email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(newEmailConfig.senderEmail)) {
-        setError('Please enter a valid email address');
-        return;
-      }
-
       const response = await emailApi.addEmailConfig(newEmailConfig);
       
       if (!response.data.success) {
@@ -229,10 +211,7 @@ const DraftPage = () => {
       await fetchEmailConfigs();
       setShowEmailConfigModal(false);
       setNewEmailConfig({ senderEmail: '', appPassword: '' });
-      setSuccess('Email configuration saved successfully! You can now send emails without re-entering credentials.');
-      
-      // Auto-select the newly added config
-      setSelectedEmailConfig(newEmailConfig.senderEmail);
+      setSuccess('Email configuration added successfully');
     } catch (error) {
       console.error('Add email config error:', error);
       setError(error.response?.data?.message || error.message || 'Error adding email configuration');
@@ -242,29 +221,39 @@ const DraftPage = () => {
   };
 
   const handleDeleteEmailConfig = async (senderEmail) => {
-    if (!window.confirm(`Are you sure you want to delete the configuration for ${senderEmail}?`)) {
-      return;
-    }
-
     try {
       setLoading(true);
+      setError(null);
+      
       const response = await emailApi.deleteEmailConfig(senderEmail);
       
-      if (response.data.success) {
-        await fetchEmailConfigs();
-        setSuccess('Email configuration deleted successfully');
-        
-        // If deleted config was selected, clear selection
-        if (selectedEmailConfig === senderEmail) {
-          setSelectedEmailConfig('');
-        }
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to delete email configuration');
       }
+
+      // Refresh the email configs list
+      await fetchEmailConfigs();
+      
+      // If the deleted config was selected, select the first available one or clear selection
+      if (selectedEmailConfig === senderEmail) {
+        const updatedConfigs = emailConfigs.filter(config => config.senderEmail !== senderEmail);
+        setSelectedEmailConfig(updatedConfigs.length > 0 ? updatedConfigs[0].senderEmail : '');
+      }
+      
+      setShowDeleteConfirmModal(false);
+      setEmailToDelete('');
+      setSuccess('Email configuration deleted successfully');
     } catch (error) {
       console.error('Delete email config error:', error);
-      setError(error.response?.data?.message || 'Error deleting email configuration');
+      setError(error.response?.data?.message || error.message || 'Error deleting email configuration');
     } finally {
       setLoading(false);
     }
+  };
+
+  const initiateDeleteEmailConfig = (senderEmail) => {
+    setEmailToDelete(senderEmail);
+    setShowDeleteConfirmModal(true);
   };
 
   // Initialize template data when a template is selected
@@ -529,20 +518,13 @@ const DraftPage = () => {
     URL.revokeObjectURL(url)
   }
 
-  // Clear messages after 5 seconds
+  // clear messages after 5 seconds
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(null), 5000)
       return () => clearTimeout(timer)
     }
   }, [success])
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(null), 8000)
-      return () => clearTimeout(timer)
-    }
-  }, [error])
 
   return (
     <div className="space-y-6">
@@ -560,7 +542,7 @@ const DraftPage = () => {
                   type="email"
                   value={newEmailConfig.senderEmail}
                   onChange={(e) => setNewEmailConfig(prev => ({ ...prev, senderEmail: e.target.value }))}
-                  placeholder="Enter your Gmail address"
+                  placeholder="Enter your email"
                   className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
                 />
               </div>
@@ -572,22 +554,17 @@ const DraftPage = () => {
                   type="password"
                   value={newEmailConfig.appPassword}
                   onChange={(e) => setNewEmailConfig(prev => ({ ...prev, appPassword: e.target.value }))}
-                  placeholder="Enter 16-character app password"
+                  placeholder="Enter app password"
                   className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
                 />
-                <div className="text-xs text-[#521C0D]/60 mt-2 space-y-1">
-                  <p>• Enable 2-factor authentication on your Gmail account</p>
-                  <p>• Generate app password from Google Account Security settings</p>
-                  <p>• Use the 16-character password (not your regular password)</p>
-                </div>
+                <p className="text-xs text-[#521C0D]/60 mt-2">
+                  Use an app password from your email provider's security settings
+                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => {
-                  setShowEmailConfigModal(false)
-                  setNewEmailConfig({ senderEmail: '', appPassword: '' })
-                }}
+                onClick={() => setShowEmailConfigModal(false)}
                 className="flex-1 px-4 py-2 border border-[#521C0D]/20 text-[#521C0D] rounded-xl hover:bg-[#521C0D]/10 transition-colors"
               >
                 Cancel
@@ -595,15 +572,61 @@ const DraftPage = () => {
               <button
                 onClick={handleAddEmailConfig}
                 disabled={!newEmailConfig.senderEmail || !newEmailConfig.appPassword || loading}
-                className="flex-1 px-4 py-2 bg-[#D5451B] text-white rounded-xl hover:bg-[#521C0D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-[#D5451B] text-white rounded-xl hover:bg-[#521C0D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Adding...' : 'Add Configuration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="text-red-600" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-[#521C0D]">Delete Email Configuration</h3>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-[#521C0D] mb-2">
+                Are you sure you want to delete the email configuration for:
+              </p>
+              <p className="font-semibold text-[#D5451B] bg-red-50 p-3 rounded-lg">
+                {emailToDelete}
+              </p>
+              <p className="text-sm text-[#521C0D]/70 mt-2">
+                This action cannot be undone. You'll need to add the configuration again if you want to use this email address.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setEmailToDelete('');
+                }}
+                className="flex-1 px-4 py-2 border border-[#521C0D]/20 text-[#521C0D] rounded-xl hover:bg-[#521C0D]/10 transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteEmailConfig(emailToDelete)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={loading}
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Adding...
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Deleting...
                   </>
                 ) : (
-                  'Save Configuration'
+                  'Delete Configuration'
                 )}
               </button>
             </div>
@@ -611,6 +634,7 @@ const DraftPage = () => {
         </div>
       )}
 
+      {/* Email Preview Modal */}
       <EmailPreviewModal
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
@@ -635,26 +659,14 @@ const DraftPage = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
           <AlertCircle size={20} />
-          <span className="flex-1">{error}</span>
-          <button 
-            onClick={() => setError(null)}
-            className="p-1 hover:bg-red-200 rounded"
-          >
-            <X size={16} />
-          </button>
+          {error}
         </div>
       )}
 
       {success && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl flex items-center gap-2">
           <CheckCircle size={20} />
-          <span className="flex-1">{success}</span>
-          <button 
-            onClick={() => setSuccess(null)}
-            className="p-1 hover:bg-green-200 rounded"
-          >
-            <X size={16} />
-          </button>
+          {success}
         </div>
       )}
 
@@ -701,7 +713,7 @@ const DraftPage = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-       
+        {/* Left Column - File Upload and Data Preview */}
         <div className="space-y-6">
           <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
             <h3 className="text-lg font-semibold text-[#521C0D] mb-4 flex items-center gap-2">
@@ -804,95 +816,99 @@ const DraftPage = () => {
           )}
         </div>
 
+        {/* Right Column - Email Configuration and Template */}
         <div className="space-y-6">
+          {/* Email Configuration Section */}
           <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#521C0D] flex items-center gap-2">
                 <Mail size={20} />
-                Email Content
+                Email Configuration
               </h3>
               <button
                 onClick={() => setShowEmailConfigModal(true)}
                 className="flex items-center gap-2 px-3 py-2 bg-[#521C0D]/10 text-[#521C0D] rounded-lg hover:bg-[#521C0D]/20 transition-colors"
-                disabled={loading}
               >
-                <Plus size={16} />
+                <Settings size={16} />
                 Add Email
               </button>
             </div>
             
             <div className="space-y-4">
-              {configsLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="w-6 h-6 border-2 border-[#521C0D]/30 border-t-[#521C0D] rounded-full animate-spin"></div>
-                  <span className="ml-2 text-[#521C0D]/60">Loading email configurations...</span>
-                </div>
-              ) : emailConfigs.length > 0 ? (
+              {emailConfigs.length > 0 ? (
                 <div>
-                  <label className="block text-sm font-medium text-[#521C0D] mb-2">
-                    Sender Email ({emailConfigs.length} configured)
+                  <label className="block text-sm font-medium text-[#521C0D] mb-3">
+                    Select Sender Email ({emailConfigs.length} configured)
                   </label>
-                  <div className="space-y-3">
-                    <select
-                      value={selectedEmailConfig}
-                      onChange={(e) => setSelectedEmailConfig(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
-                    >
-                      <option value="">Select sender email...</option>
-                      {emailConfigs.map((config) => (
-                        <option key={config.senderEmail} value={config.senderEmail}>
-                          {config.senderEmail}
-                        </option>
-                      ))}
-                    </select>
-                    
-                    {/* Email Config Management */}
-                    <div className="bg-[#521C0D]/5 rounded-lg p-3">
-                      <h4 className="text-sm font-medium text-[#521C0D] mb-2">Saved Email Configurations:</h4>
-                      <div className="space-y-2">
-                        {emailConfigs.map((config) => (
-                          <div key={config.senderEmail} className="flex items-center justify-between bg-white rounded-lg p-2 border border-[#521C0D]/10">
-                            <div className="flex items-center gap-2">
-                              <Mail size={14} className="text-[#521C0D]/60" />
-                              <span className="text-sm text-[#521C0D]">{config.senderEmail}</span>
-                              {selectedEmailConfig === config.senderEmail && (
-                                <span className="text-xs bg-[#FF9B45]/20 text-[#D5451B] px-2 py-1 rounded-full">Selected</span>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleDeleteEmailConfig(config.senderEmail)}
-                              className="p-1 hover:bg-red-100 text-red-600 rounded transition-colors"
-                              disabled={loading}
-                              title="Delete configuration"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
+                  <div className="space-y-2">
+                    {emailConfigs.map((config) => (
+                      <div 
+                        key={config.senderEmail} 
+                        className={`flex items-center justify-between p-3 border rounded-xl transition-all duration-200 ${
+                          selectedEmailConfig === config.senderEmail 
+                            ? 'border-[#FF9B45] bg-[#FF9B45]/10 shadow-sm' 
+                            : 'border-[#521C0D]/20 hover:border-[#FF9B45]/50 hover:bg-[#FF9B45]/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            id={config.senderEmail}
+                            name="senderEmail"
+                            value={config.senderEmail}
+                            checked={selectedEmailConfig === config.senderEmail}
+                            onChange={(e) => setSelectedEmailConfig(e.target.value)}
+                            className="text-[#FF9B45] focus:ring-[#FF9B45] focus:ring-2"
+                          />
+                          <label 
+                            htmlFor={config.senderEmail}
+                            className="text-[#521C0D] cursor-pointer font-medium"
+                          >
+                            {config.senderEmail}
+                          </label>
+                          {selectedEmailConfig === config.senderEmail && (
+                            <span className="px-2 py-1 bg-[#FF9B45] text-white text-xs rounded-full">
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => initiateDeleteEmailConfig(config.senderEmail)}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors group"
+                          title="Delete this email configuration"
+                          disabled={loading}
+                        >
+                          <X size={16} className="group-hover:scale-110 transition-transform" />
+                        </button>
                       </div>
-                    </div>
+                    ))}
                   </div>
+                  <p className="text-xs text-[#521C0D]/60 mt-2">
+                    Click the X button to remove an email configuration
+                  </p>
                 </div>
               ) : (
                 <div className="bg-[#FF9B45]/20 text-[#D5451B] p-4 rounded-xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle size={20} />
-                    <span className="font-medium">No Email Configurations Found</span>
+                    <AlertCircle size={16} />
+                    <span className="font-medium">No Email Configurations</span>
                   </div>
-                  <p className="text-sm mb-3">
-                    To send emails, you need to configure at least one sender email with an app password.
-                    This is a one-time setup - your credentials will be securely stored.
+                  <p className="text-sm">
+                    You need to add at least one email configuration to send campaigns. Click "Add Email" to get started.
                   </p>
-                  <button
-                    onClick={() => setShowEmailConfigModal(true)}
-                    className="flex items-center gap-2 px-3 py-2 bg-[#D5451B] text-white rounded-lg hover:bg-[#521C0D] transition-colors text-sm"
-                  >
-                    <Settings size={16} />
-                    Configure Email Now
-                  </button>
                 </div>
               )}
+            </div>
+          </div>
 
+          {/* Email Content Section */}
+          <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-[#521C0D]/10">
+            <h3 className="text-lg font-semibold text-[#521C0D] mb-4 flex items-center gap-2">
+              <Mail size={20} />
+              Email Content
+            </h3>
+            
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[#521C0D] mb-2">
                   Subject Line
@@ -918,7 +934,6 @@ const DraftPage = () => {
                         key={index}
                         onClick={() => insertField(field)}
                         className="px-3 py-1 bg-[#FF9B45]/20 text-[#521C0D] rounded-lg hover:bg-[#FF9B45]/30 transition-colors text-sm"
-                        disabled={loading}
                       >
                         {field}
                       </button>
@@ -950,6 +965,7 @@ Best regards"
             </div>
           </div>
 
+          {/* Preview Section */}
           {data.length > 1 && (
             <div className="bg-[#F4E7E1]/80 backdrop-blur-lg rounded-2xl p-4 shadow-lg border border-[#521C0D]/10">
               <label className="block text-sm font-medium text-[#521C0D] mb-2">
@@ -971,6 +987,7 @@ Best regards"
             </div>
           )}
 
+          {/* Action Buttons */}
           <div className="flex gap-4 justify-end">
             <button
               onClick={handlePreview}

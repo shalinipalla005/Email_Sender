@@ -53,6 +53,7 @@ export const emailApi = {
   createCampaign: (data) => api.post('/emails/create', data),
   sendCampaign: (mailId) => api.post(`/emails/send/${mailId}`),
   addEmailConfig: (data) => api.post('/emails/add-email-config', data),
+  deleteEmailConfig: (senderEmail) => api.post('/emails/delete-email-config', { senderEmail }), 
   getEmailConfigs: () => api.get('/emails/configs'),
   getSent: () => api.get('/emails/sent'),
   getStats: () => api.get('/emails/stats')
