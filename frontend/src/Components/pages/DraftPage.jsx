@@ -5,6 +5,14 @@ import Papa from 'papaparse'
 import { emailApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
+import { useState, useRef, useEffect } from 'react'
+import { Upload, FileText, X, Eye, Send, Users, Mail, AlertCircle, CheckCircle, Download, Zap, Clock, Target, Settings, Trash2, Plus } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import Papa from 'papaparse'
+import { emailApi } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
+
+// Email Preview Modal Component (keeping the existing one)
 const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
   if (!isOpen || !previewData) return null
 
@@ -108,7 +116,8 @@ const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
           {body && body.includes('{{') && (
             <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <div className="flex items-center gap-2 text-yellow-800 mb-2">
-                <span className="text-sm font-medium">⚠️ Template Variables Detected</span>
+                <AlertCircle size={16} />
+                <span className="text-sm font-medium">Template Variables Detected</span>
               </div>
               <p className="text-sm text-yellow-700">
                 If you see {`{{variable}}`} text in the preview, it means those fields weren't found in your data. 
@@ -171,6 +180,7 @@ const DraftPage = () => {
   const [selectedEmailConfig, setSelectedEmailConfig] = useState('')
   const [showEmailConfigModal, setShowEmailConfigModal] = useState(false)
   const [newEmailConfig, setNewEmailConfig] = useState({ senderEmail: '', appPassword: '' })
+  const [configsLoading, setConfigsLoading] = useState(true)
   const fileInputRef = useRef(null)
 
   // Fetch email configurations on mount
@@ -180,13 +190,23 @@ const DraftPage = () => {
 
   const fetchEmailConfigs = async () => {
     try {
+      setConfigsLoading(true)
       const response = await emailApi.getEmailConfigs()
-      setEmailConfigs(response.data)
-      if (response.data.length > 0) {
-        setSelectedEmailConfig(response.data[0].senderEmail)
+      
+      if (response.data && response.data.success) {
+        setEmailConfigs(response.data.data || [])
+        if (response.data.data && response.data.data.length > 0) {
+          setSelectedEmailConfig(response.data.data[0].senderEmail)
+        }
+      } else {
+        setEmailConfigs([])
       }
     } catch (error) {
       console.error('Error fetching email configs:', error)
+      setEmailConfigs([])
+      // Don't show error for empty configs, it's normal for new users
+    } finally {
+      setConfigsLoading(false)
     }
   }
 
@@ -200,6 +220,13 @@ const DraftPage = () => {
         return;
       }
 
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newEmailConfig.senderEmail)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+
       const response = await emailApi.addEmailConfig(newEmailConfig);
       
       if (!response.data.success) {
@@ -209,10 +236,39 @@ const DraftPage = () => {
       await fetchEmailConfigs();
       setShowEmailConfigModal(false);
       setNewEmailConfig({ senderEmail: '', appPassword: '' });
-      setSuccess('Email configuration added successfully');
+      setSuccess('Email configuration saved successfully! You can now send emails without re-entering credentials.');
+      
+      // Auto-select the newly added config
+      setSelectedEmailConfig(newEmailConfig.senderEmail);
     } catch (error) {
       console.error('Add email config error:', error);
       setError(error.response?.data?.message || error.message || 'Error adding email configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEmailConfig = async (senderEmail) => {
+    if (!window.confirm(`Are you sure you want to delete the configuration for ${senderEmail}?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await emailApi.deleteEmailConfig(senderEmail);
+      
+      if (response.data.success) {
+        await fetchEmailConfigs();
+        setSuccess('Email configuration deleted successfully');
+        
+        // If deleted config was selected, clear selection
+        if (selectedEmailConfig === senderEmail) {
+          setSelectedEmailConfig('');
+        }
+      }
+    } catch (error) {
+      console.error('Delete email config error:', error);
+      setError(error.response?.data?.message || 'Error deleting email configuration');
     } finally {
       setLoading(false);
     }
@@ -480,13 +536,20 @@ const DraftPage = () => {
     URL.revokeObjectURL(url)
   }
 
-  // clear messages after 5 seconds
+  // Clear messages after 5 seconds
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(null), 5000)
       return () => clearTimeout(timer)
     }
   }, [success])
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
 
   return (
     <div className="space-y-6">
@@ -504,7 +567,7 @@ const DraftPage = () => {
                   type="email"
                   value={newEmailConfig.senderEmail}
                   onChange={(e) => setNewEmailConfig(prev => ({ ...prev, senderEmail: e.target.value }))}
-                  placeholder="Enter your email"
+                  placeholder="Enter your Gmail address"
                   className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
                 />
               </div>
@@ -516,17 +579,22 @@ const DraftPage = () => {
                   type="password"
                   value={newEmailConfig.appPassword}
                   onChange={(e) => setNewEmailConfig(prev => ({ ...prev, appPassword: e.target.value }))}
-                  placeholder="Enter app password"
+                  placeholder="Enter 16-character app password"
                   className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] placeholder-[#521C0D]/60 focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
                 />
-                <p className="text-xs text-[#521C0D]/60 mt-2">
-                  Use an app password from your email provider's security settings
-                </p>
+                <div className="text-xs text-[#521C0D]/60 mt-2 space-y-1">
+                  <p>• Enable 2-factor authentication on your Gmail account</p>
+                  <p>• Generate app password from Google Account Security settings</p>
+                  <p>• Use the 16-character password (not your regular password)</p>
+                </div>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowEmailConfigModal(false)}
+                onClick={() => {
+                  setShowEmailConfigModal(false)
+                  setNewEmailConfig({ senderEmail: '', appPassword: '' })
+                }}
                 className="flex-1 px-4 py-2 border border-[#521C0D]/20 text-[#521C0D] rounded-xl hover:bg-[#521C0D]/10 transition-colors"
               >
                 Cancel
@@ -534,9 +602,16 @@ const DraftPage = () => {
               <button
                 onClick={handleAddEmailConfig}
                 disabled={!newEmailConfig.senderEmail || !newEmailConfig.appPassword || loading}
-                className="flex-1 px-4 py-2 bg-[#D5451B] text-white rounded-xl hover:bg-[#521C0D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-[#D5451B] text-white rounded-xl hover:bg-[#521C0D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {loading ? 'Adding...' : 'Add Configuration'}
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Adding...
+                  </>
+                ) : (
+                  'Save Configuration'
+                )}
               </button>
             </div>
           </div>
@@ -567,14 +642,26 @@ const DraftPage = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
           <AlertCircle size={20} />
-          {error}
+          <span className="flex-1">{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="p-1 hover:bg-red-200 rounded"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
       {success && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl flex items-center gap-2">
           <CheckCircle size={20} />
-          {success}
+          <span className="flex-1">{success}</span>
+          <button 
+            onClick={() => setSuccess(null)}
+            className="p-1 hover:bg-green-200 rounded"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -734,35 +821,82 @@ const DraftPage = () => {
               <button
                 onClick={() => setShowEmailConfigModal(true)}
                 className="flex items-center gap-2 px-3 py-2 bg-[#521C0D]/10 text-[#521C0D] rounded-lg hover:bg-[#521C0D]/20 transition-colors"
+                disabled={loading}
               >
-                <Settings size={16} />
-                Configure Email
+                <Plus size={16} />
+                Add Email
               </button>
             </div>
             
             <div className="space-y-4">
-              {emailConfigs.length > 0 ? (
+              {configsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-[#521C0D]/30 border-t-[#521C0D] rounded-full animate-spin"></div>
+                  <span className="ml-2 text-[#521C0D]/60">Loading email configurations...</span>
+                </div>
+              ) : emailConfigs.length > 0 ? (
                 <div>
                   <label className="block text-sm font-medium text-[#521C0D] mb-2">
-                    Sender Email
+                    Sender Email ({emailConfigs.length} configured)
                   </label>
-                  <select
-                    value={selectedEmailConfig}
-                    onChange={(e) => setSelectedEmailConfig(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
-                  >
-                    {emailConfigs.map((config) => (
-                      <option key={config.senderEmail} value={config.senderEmail}>
-                        {config.senderEmail}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-3">
+                    <select
+                      value={selectedEmailConfig}
+                      onChange={(e) => setSelectedEmailConfig(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-[#521C0D]/20 rounded-xl text-[#521C0D] focus:outline-none focus:ring-2 focus:ring-[#FF9B45] focus:border-transparent"
+                    >
+                      <option value="">Select sender email...</option>
+                      {emailConfigs.map((config) => (
+                        <option key={config.senderEmail} value={config.senderEmail}>
+                          {config.senderEmail}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {/* Email Config Management */}
+                    <div className="bg-[#521C0D]/5 rounded-lg p-3">
+                      <h4 className="text-sm font-medium text-[#521C0D] mb-2">Saved Email Configurations:</h4>
+                      <div className="space-y-2">
+                        {emailConfigs.map((config) => (
+                          <div key={config.senderEmail} className="flex items-center justify-between bg-white rounded-lg p-2 border border-[#521C0D]/10">
+                            <div className="flex items-center gap-2">
+                              <Mail size={14} className="text-[#521C0D]/60" />
+                              <span className="text-sm text-[#521C0D]">{config.senderEmail}</span>
+                              {selectedEmailConfig === config.senderEmail && (
+                                <span className="text-xs bg-[#FF9B45]/20 text-[#D5451B] px-2 py-1 rounded-full">Selected</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteEmailConfig(config.senderEmail)}
+                              className="p-1 hover:bg-red-100 text-red-600 rounded transition-colors"
+                              disabled={loading}
+                              title="Delete configuration"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="bg-[#FF9B45]/20 text-[#D5451B] p-4 rounded-xl">
-                  <p className="text-sm">
-                    No email configurations found. Please add one to send emails.
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle size={20} />
+                    <span className="font-medium">No Email Configurations Found</span>
+                  </div>
+                  <p className="text-sm mb-3">
+                    To send emails, you need to configure at least one sender email with an app password.
+                    This is a one-time setup - your credentials will be securely stored.
                   </p>
+                  <button
+                    onClick={() => setShowEmailConfigModal(true)}
+                    className="flex items-center gap-2 px-3 py-2 bg-[#D5451B] text-white rounded-lg hover:bg-[#521C0D] transition-colors text-sm"
+                  >
+                    <Settings size={16} />
+                    Configure Email Now
+                  </button>
                 </div>
               )}
 
@@ -791,6 +925,7 @@ const DraftPage = () => {
                         key={index}
                         onClick={() => insertField(field)}
                         className="px-3 py-1 bg-[#FF9B45]/20 text-[#521C0D] rounded-lg hover:bg-[#FF9B45]/30 transition-colors text-sm"
+                        disabled={loading}
                       >
                         {field}
                       </button>
