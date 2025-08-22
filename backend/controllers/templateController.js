@@ -40,13 +40,15 @@ const saveTemplate = async (req, res) => {
 };
 
 // Get all templates for the logged-in user
+
+// Update the getTemplates function to use proper field mapping
 const getTemplates = async (req, res) => {
   try {
     const userId = req.user._id;
 
     const templates = await Templates.find({ createdBy: userId })
-      .populate("createdBy", "name email")
-      .lean(); // Convert to plain JavaScript objects
+      .populate("createdBy", "userName email") // Changed from "name email"
+      .lean();
 
     // Transform the data to match frontend expectations
     const transformedTemplates = templates.map(template => ({
@@ -74,6 +76,7 @@ const getTemplates = async (req, res) => {
     });
   }
 };
+
 
 // Get one template by ID
 const templateById = async (req, res) => {

@@ -1,4 +1,4 @@
-const User = require('../models/users');
+const User = require('../models/User'); // Changed from users to User
 const jwt = require('jsonwebtoken');
 
 const createToken = (_id) => {
@@ -11,9 +11,7 @@ const loginUser = async (req, res) => {
 
     try{
         const user = await User.login(email, password)
-
         const token = createToken(user._id)
-
         res.status(200).json({userName : user.userName, email, token})
     }
     catch(error){
@@ -22,14 +20,12 @@ const loginUser = async (req, res) => {
 }
 
 //signup
-
 const signupUser = async (req, res) => {
     const {userName, email, password} = req.body;
 
     try{
         const user = await User.signup(userName, email, password)
         const token = createToken(user._id);
-
         res.status(200).json({userName, email, token});
     }
     catch(error){
@@ -37,7 +33,4 @@ const signupUser = async (req, res) => {
     }
 }
 
-
 module.exports = {signupUser, loginUser};
-
-
