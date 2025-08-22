@@ -2,6 +2,8 @@
 
 A full-stack bulk email sender application with a modern React frontend and Node.js/Express backend. Easily manage email templates, upload recipient data, and send personalized campaigns.
 
+You can find the Deployed Project here : [Live Demo](https://email-sender-vs94.vercel.app/)
+
 ---
 
 ## Features
