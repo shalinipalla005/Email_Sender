@@ -5,13 +5,6 @@ import Papa from 'papaparse'
 import { emailApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
-import { useState, useRef, useEffect } from 'react'
-import { Upload, FileText, X, Eye, Send, Users, Mail, AlertCircle, CheckCircle, Download, Zap, Clock, Target, Settings, Trash2, Plus } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
-import Papa from 'papaparse'
-import { emailApi } from '../../services/api'
-import { useAuth } from '../../context/AuthContext'
-
 // Email Preview Modal Component (keeping the existing one)
 const EmailPreviewModal = ({ isOpen, onClose, previewData, onSendEmail }) => {
   if (!isOpen || !previewData) return null
